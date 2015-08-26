@@ -1,0 +1,73 @@
+use propnode::*;
+use std::collections::HashMap;
+
+#[pub]
+body -> PropNode
+  = sep* n:node sep* { n }
+
+node -> PropNode
+  = float / integer / string / object / array / nil / transform / dependency_reference / reference
+
+transform -> PropNode
+  = name:identifier sep* arg:node sep* {
+    PropNode::PropTransform(Box::new(PropTransform {
+      name: name.to_string(),
+      arg: arg
+    }))
+  }
+
+dependency_reference -> PropNode
+  = "@" entity_name:identifier sep* "." sep* property_name:identifier {
+    PropNode::DependencyReference(NamedPropRef {
+      entity_name: entity_name.to_string(),
+      property_key: property_name.to_string(),
+    })
+  }
+
+reference -> PropNode
+  = entity_name:identifier sep* "." sep* property_name:identifier {
+    PropNode::Reference(NamedPropRef {
+      entity_name: entity_name.to_string(),
+      property_key: property_name.to_string(),
+    })
+  }
+
+array -> PropNode
+  = "[" sep* nodes:array_item ** "," sep* "]" {
+    PropNode::Array(nodes)
+  }
+
+array_item -> PropNode
+  = sep* v:node sep* { v }
+
+object -> PropNode
+  = "{" sep* kvs:keyval ** "," sep* "}" {
+    let mut rv = HashMap::new();
+    for &(ref k, ref v) in kvs.iter() {
+      rv.insert(k.clone(), v.clone());
+    };
+    PropNode::Object(rv)
+  }
+
+keyval -> (String, PropNode)
+  = sep* k:identifier sep* ":" sep* v:node sep* { (k, v) }
+
+identifier -> String
+  = [a-zA-Z_]+ { match_str.to_string() }
+
+float -> PropNode
+  = [-]?[0-9]+[.][0-9]+ { PropNode::Float(match_str.parse().unwrap()) }
+
+nil -> PropNode
+  = "(" sep* ")" { PropNode::Nil }
+
+integer -> PropNode
+  = [-]?[0-9]+ { PropNode::Integer(match_str.parse().unwrap()) }
+
+string -> PropNode
+  = "'" s:string_inner "'" { PropNode::String(s) }
+
+string_inner -> String
+  = [^']* { match_str.to_string() }
+
+sep = [ \t\r\n]

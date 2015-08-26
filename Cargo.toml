@@ -1,0 +1,9 @@
+[package]
+name = "pyramid"
+version = "0.1.0"
+authors = ["Fredrik Noren <fredrik.jw.noren@gmail.com>"]
+
+[dependencies]
+peg = "0.3.0"
+xml-rs = "0.1.25"
+time = "*"
