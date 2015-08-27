@@ -274,7 +274,6 @@ impl Document {
         while let Some(e) = events.next() {
             match e {
                 XmlEvent::StartElement { name: type_name, attributes, .. } => {
-                    println!("+{}", type_name);
                     let mut entity_name = match attributes.iter().find(|x| x.name.local_name == "name") {
                         Some(attr) => Some(attr.value.to_string()),
                         None => None
