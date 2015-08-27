@@ -15,6 +15,7 @@ use std::slice::IterMut;
 use std::borrow::Borrow;
 use std::io::Read;
 use std::collections::hash_map::Keys;
+use std::path::Path;
 
 use xml::reader::EventReader;
 use xml::reader::events::*;
@@ -196,8 +197,8 @@ impl Document {
     //     return Ok(cascades);
     // }
 
-    pub fn from_file(filename: &str) -> Document {
-        let file = File::open(filename).unwrap();
+    pub fn from_file(path: &Path) -> Document {
+        let file = File::open(path).unwrap();
         let file = BufReader::new(file);
 
         let mut parser = EventReader::new(file);
