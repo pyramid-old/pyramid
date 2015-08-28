@@ -58,16 +58,10 @@ struct Entity {
     parent_id: EntityId
 }
 
-struct Blueprint {
-    properties: Vec<(String, PropNode)>,
-    //children: Vec<Blueprint> // TODO
-}
-
 pub struct Document {
     id_counter: EntityId,
     entities: HashMap<EntityId, Entity>,
-    entity_ids_by_name: HashMap<String, EntityId>,
-    blueprints: HashMap<String, Blueprint>
+    entity_ids_by_name: HashMap<String, EntityId>
 }
 
 impl Document {
@@ -75,15 +69,14 @@ impl Document {
         Document {
             id_counter: 0,
             entities: HashMap::new(),
-            entity_ids_by_name: HashMap::new(),
-            blueprints: HashMap::new()
+            entity_ids_by_name: HashMap::new()
         }
     }
     fn new_id(&mut self) -> EntityId {
         self.id_counter += 1;
         return self.id_counter;
     }
-    pub fn append(&mut self, parent_id: EntityId, type_name: String, name: Option<String>) -> Result<EntityId, DocError> {
+    pub fn append_entity(&mut self, parent_id: EntityId, type_name: String, name: Option<String>) -> Result<EntityId, DocError> {
         let id = self.new_id();
         let entity = Entity {
             id: id.clone(),
@@ -103,15 +96,6 @@ impl Document {
             self.entity_ids_by_name.insert(name.clone(), entity.id);
         }
         self.entities.insert(entity.id, entity);
-        let blueprint_props = match self.blueprints.get(&type_name) {
-            Some(blueprint) => Some(blueprint.properties.clone()),
-            None => None
-        };
-        if let Some(blueprint_props) = blueprint_props {
-            for (key, val) in blueprint_props {
-                self.set_property(&id, &key, val); // TODO: probably should return the invalidated props
-            }
-        }
         return Ok(id);
     }
     pub fn get_entity_by_name(&self, name: &str) -> Option<EntityId> {
@@ -172,6 +156,12 @@ impl Document {
     pub fn get_properties(&self, entity_id: &EntityId) -> Result<Vec<PropRef>, DocError> {
         match self.entities.get(&entity_id) {
             Some(entity) => Ok(entity.properties.keys().map(|key| PropRef { entity_id: entity_id.clone(), property_key: key.clone() }).collect()),
+            None => Err(DocError::NoSuchEntity)
+        }
+    }
+    pub fn get_children(&self, entity_id: &EntityId) -> Result<&Vec<EntityId>, DocError> {
+        match self.entities.get(&entity_id) {
+            Some(entity) => Ok(&entity.children_ids),
             None => Err(DocError::NoSuchEntity)
         }
     }
@@ -281,30 +271,12 @@ impl Document {
                         let include_root_path = include_path.parent().unwrap();
                         self.append_from_event_reader(&include_root_path, &mut entity_stack, include_event_reader.events());
                         continue;
-                    } else if type_name.local_name == "Blueprint" {
-                        let mut properties = vec![];
-                        if let Some(attr) = attributes.iter().find(|x| x.name.local_name == "inherits" ) {
-                            properties = match self.blueprints.get(&attr.value) {
-                                Some(blueprint) => blueprint.properties.clone(),
-                                None => panic!("No such blueprint: {}", attr.value)
-                            }
-                        };
-                        for x in attributes.iter().filter(|x| x.name.local_name != "name" && x.name.local_name != "inherits" ) {
-                            properties.push((x.name.local_name.to_string(), match propnode_parse::body(&x.value) {
-                                Ok(node) => node,
-                                Err(err) => panic!("Error parsing: {} error: {:?}", x.value, err)
-                            }));
-                        }
-                        self.blueprints.insert(entity_name.unwrap(), Blueprint {
-                            properties: properties
-                            });
-                        continue;
                     }
                     let parent = match entity_stack.last() {
                         Some(parent) => *parent,
                         None => -1
                     };
-                    let entity_id = self.append(parent, type_name.local_name.to_string(), entity_name).unwrap();
+                    let entity_id = self.append_entity(parent, type_name.local_name.to_string(), entity_name).unwrap();
 
                     for attribute in attributes {
                         if (attribute.name.local_name == "name") { continue; }
@@ -316,9 +288,6 @@ impl Document {
                     entity_stack.push(entity_id);
                 }
                 XmlEvent::EndElement { name: type_name } => {
-                    if type_name.local_name == "Blueprint" {
-                        continue;
-                    }
                     entity_stack.pop();
                 }
                 XmlEvent::Error(e) => {
@@ -408,11 +377,4 @@ fn test_property_reference_update() {
         assert_eq!(cascades[1], PropRef { entity_id: ent, property_key: "y".to_string() });
     }
     assert_eq!(doc.get_property_value(&ent, "y"), Ok(propnode_parse::body("9").unwrap()));
-}
-
-#[test]
-fn test_blueprint() {
-    let doc = Document::from_string(r#"<Root><Blueprint name="Rock" x="5" /><Rock name="tmp" /></Root>"#);
-    let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "x"), Ok(PropNode::Integer(5)));
 }

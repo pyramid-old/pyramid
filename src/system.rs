@@ -68,9 +68,14 @@ impl System {
 }
 
 impl interface::System for System {
-    fn append_entity(&mut self, parent: &EntityId, type_name: String, name: Option<String>) {
-        let entity_id = self.document.append(parent.clone(), type_name, name).unwrap();
-        self.on_entity_added(&entity_id);
+    fn append_entity(&mut self, parent: &EntityId, type_name: String, name: Option<String>) -> Result<EntityId, DocError> {
+        match self.document.append_entity(parent.clone(), type_name, name) {
+            Ok(entity_id) => {
+                self.on_entity_added(&entity_id);
+                Ok(entity_id)
+            },
+            err @ _ => err
+        }
     }
     fn get_entity_by_name(&self, name: &str) -> Option<EntityId> {
         self.document.get_entity_by_name(name)
@@ -87,6 +92,9 @@ impl interface::System for System {
     }
     fn get_properties(&self, entity_id: &EntityId) -> Result<Vec<PropRef>, DocError> {
         self.document.get_properties(entity_id)
+    }
+    fn get_children(&self, entity_id: &EntityId) -> Result<&Vec<EntityId>, DocError> {
+        self.document.get_children(entity_id)
     }
     fn exit(&mut self) {
         self.running = false;
