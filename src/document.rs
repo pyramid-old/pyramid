@@ -16,8 +16,10 @@ use std::borrow::Borrow;
 use std::io::Read;
 use std::collections::hash_map::Keys;
 use std::path::Path;
+use std::fs::PathExt;
 
 use xml::reader::EventReader;
+use xml::reader::Events;
 use xml::reader::events::*;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -187,26 +189,18 @@ impl Document {
             None => Err(DocError::BadReference)
         }
     }
-    // pub fn get_property_cascades(&self, entity_id: &EntityId, key: &str) -> Result<Vec<PropRef>, DocError> {
-    //     let ent = match self.entities.get(entity_id) {
-    //         Some(ent) => ent,
-    //         None => return Err(DocError::NoSuchEntity)
-    //     };
-    //     let mut cascades = vec![];
-    //     try!(self.build_property_cascades(&ent, key.to_string(), &mut cascades));
-    //     return Ok(cascades);
-    // }
 
     pub fn from_file(path: &Path) -> Document {
-        let file = File::open(path).unwrap();
-        let file = BufReader::new(file);
-
-        let mut parser = EventReader::new(file);
-        return Document::from_event_reader(parser.events());
+        let root_path = path.parent().unwrap();
+        let mut doc = Document::new();
+        doc.append_from_event_reader(&root_path, &mut vec![], event_reader_from_file(path).events());
+        return doc;
     }
     pub fn from_string(string: &str) -> Document {
+        let mut doc = Document::new();
         let mut parser = EventReader::from_str(string);
-        return Document::from_event_reader(parser.events());
+        doc.append_from_event_reader(&Path::new("."), &mut vec![], parser.events());
+        return doc;
     }
 
 
@@ -265,12 +259,7 @@ impl Document {
         }
     }
 
-
-    fn from_event_reader<T: Iterator<Item=XmlEvent>>(mut events: T) -> Document {
-
-        let mut doc = Document::new();
-        let mut entity_stack = vec![];
-
+    fn append_from_event_reader<T: Iterator<Item=XmlEvent>>(&mut self, root_path: &Path, mut entity_stack: &mut Vec<EntityId>, mut events: T) {
         while let Some(e) = events.next() {
             match e {
                 XmlEvent::StartElement { name: type_name, attributes, .. } => {
@@ -278,15 +267,36 @@ impl Document {
                         Some(attr) => Some(attr.value.to_string()),
                         None => None
                     };
-                    if type_name.local_name == "Blueprint" {
-                        doc.blueprints.insert(entity_name.unwrap(), Blueprint {
-                            properties: attributes.iter()
-                                .filter(|x| x.name.local_name != "name" )
-                                .map(|x| (x.name.local_name.to_string(), match propnode_parse::body(&x.value) {
-                                    Ok(node) => node,
-                                    Err(err) => panic!("Error parsing: {} error: {:?}", x.value, err)
-                                }))
-                                .collect()
+                    if type_name.local_name == "Include" {
+                        let include_file = match attributes.iter().find(|x| x.name.local_name == "file" ) {
+                            Some(file) => file.value.clone(),
+                            None => panic!("Include file field missing")
+                        };
+                        let include_path_buf = root_path.join(include_file);
+                        let include_path = include_path_buf.as_path();
+                        if !include_path.exists() {
+                            panic!("Include: No such file: {:?}", include_path);
+                        }
+                        let mut include_event_reader = event_reader_from_file(include_path);
+                        let include_root_path = include_path.parent().unwrap();
+                        self.append_from_event_reader(&include_root_path, &mut entity_stack, include_event_reader.events());
+                        continue;
+                    } else if type_name.local_name == "Blueprint" {
+                        let mut properties = vec![];
+                        if let Some(attr) = attributes.iter().find(|x| x.name.local_name == "inherits" ) {
+                            properties = match self.blueprints.get(&attr.value) {
+                                Some(blueprint) => blueprint.properties.clone(),
+                                None => panic!("No such blueprint: {}", attr.value)
+                            }
+                        };
+                        for x in attributes.iter().filter(|x| x.name.local_name != "name" && x.name.local_name != "inherits" ) {
+                            properties.push((x.name.local_name.to_string(), match propnode_parse::body(&x.value) {
+                                Ok(node) => node,
+                                Err(err) => panic!("Error parsing: {} error: {:?}", x.value, err)
+                            }));
+                        }
+                        self.blueprints.insert(entity_name.unwrap(), Blueprint {
+                            properties: properties
                             });
                         continue;
                     }
@@ -294,12 +304,12 @@ impl Document {
                         Some(parent) => *parent,
                         None => -1
                     };
-                    let entity_id = doc.append(parent, type_name.local_name.to_string(), entity_name).unwrap();
+                    let entity_id = self.append(parent, type_name.local_name.to_string(), entity_name).unwrap();
 
                     for attribute in attributes {
                         if (attribute.name.local_name == "name") { continue; }
                         match propnode_parse::body(&attribute.value) {
-                            Ok(node) => doc.set_property(&entity_id, &attribute.name.local_name, node),
+                            Ok(node) => self.set_property(&entity_id, &attribute.name.local_name, node),
                             Err(err) => panic!("Error parsing: {} error: {:?}", attribute.value, err)
                         };
                     }
@@ -318,10 +328,15 @@ impl Document {
                 _ => {}
             }
         }
-        return doc;
     }
 }
 
+fn event_reader_from_file(path: &Path) -> EventReader<BufReader<File>> {
+    let file = File::open(path).unwrap();
+    let file = BufReader::new(file);
+
+    EventReader::new(file)
+}
 
 #[test]
 fn test_property_get() {
