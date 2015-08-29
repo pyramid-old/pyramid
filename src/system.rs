@@ -37,9 +37,8 @@ impl System {
     }
     pub fn set_document(&mut self, document: Document) {
         self.document = document;
-        let entities: Vec<EntityId> = { self.document.iter().map(|x| x.clone()).collect() };
-        for entity_id in entities {
-            self.on_entity_added(&entity_id);
+        for system in self.sub_systems.clone() {
+            system.borrow_mut().on_document_loaded(self);
         }
     }
     pub fn update(&mut self) {
@@ -90,11 +89,20 @@ impl interface::System for System {
     fn resolve_named_prop_ref(&self, entity_id: &EntityId, named_prop_ref: &NamedPropRef) -> Result<PropRef, DocError> {
         self.document.resolve_named_prop_ref(entity_id, named_prop_ref)
     }
+    fn get_entity_type_name(&self, entity_id: &EntityId) -> Result<&String, DocError> {
+        self.document.get_entity_type_name(entity_id)
+    }
     fn get_properties(&self, entity_id: &EntityId) -> Result<Vec<PropRef>, DocError> {
         self.document.get_properties(entity_id)
     }
     fn get_children(&self, entity_id: &EntityId) -> Result<&Vec<EntityId>, DocError> {
         self.document.get_children(entity_id)
+    }
+    fn get_entities(&self) -> EntityIter {
+        self.document.iter()
+    }
+    fn get_root(&self) -> &EntityId {
+        self.document.get_root()
     }
     fn exit(&mut self) {
         self.running = false;

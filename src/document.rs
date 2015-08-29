@@ -26,7 +26,7 @@ use xml::reader::events::*;
 pub enum DocError {
     PropTranslateErr(PropTranslateErr),
     BadReference,
-    NoSuchProperty,
+    NoSuchProperty(String),
     NoSuchEntity,
     InvalidParent
 }
@@ -52,6 +52,7 @@ struct Property {
 #[derive(Debug)]
 struct Entity {
     id: EntityId,
+    type_name: String,
     properties: HashMap<String, Property>,
     name: Option<String>,
     children_ids: Vec<EntityId>,
@@ -60,6 +61,7 @@ struct Entity {
 
 pub struct Document {
     id_counter: EntityId,
+    root: EntityId,
     entities: HashMap<EntityId, Entity>,
     entity_ids_by_name: HashMap<String, EntityId>
 }
@@ -68,6 +70,7 @@ impl Document {
     pub fn new() -> Document {
         Document {
             id_counter: 0,
+            root: 1,
             entities: HashMap::new(),
             entity_ids_by_name: HashMap::new()
         }
@@ -80,6 +83,7 @@ impl Document {
         let id = self.new_id();
         let entity = Entity {
             id: id.clone(),
+            type_name: type_name,
             properties: HashMap::new(),
             name: name,
             parent_id: parent_id,
@@ -106,6 +110,9 @@ impl Document {
     }
     pub fn iter(&self) -> EntityIter {
         self.entities.keys()
+    }
+    pub fn get_root(&self) -> &EntityId {
+        &self.root
     }
     // returns all props that were invalidated
     pub fn set_property(&mut self, entity_id: &EntityId, name: &str, expression: PropNode) -> Result<Vec<PropRef>, DocError> {
@@ -179,6 +186,12 @@ impl Document {
             None => Err(DocError::BadReference)
         }
     }
+    pub fn get_entity_type_name(&self, entity_id: &EntityId) -> Result<&String, DocError> {
+        match self.entities.get(&entity_id) {
+            Some(entity) => Ok(&entity.type_name),
+            None => Err(DocError::NoSuchEntity)
+        }
+    }
 
     pub fn from_file(path: &Path) -> Document {
         let root_path = path.parent().unwrap();
@@ -214,7 +227,7 @@ impl Document {
                 }
                 return Ok(());
             },
-            None => Err(DocError::NoSuchProperty)
+            None => Err(DocError::NoSuchProperty(key.to_string()))
         }
     }
 
@@ -245,7 +258,7 @@ impl Document {
     fn get_entity_property_value(&self, entity: &Entity, name: String) -> Result<PropNode, DocError> {
         match entity.properties.get(&name) {
             Some(prop) => self.resolve_property_node_value(entity, &prop.expression),
-            None => Err(DocError::NoSuchProperty)
+            None => Err(DocError::NoSuchProperty(name.to_string()))
         }
     }
 
@@ -356,7 +369,7 @@ fn test_property_reference_array() {
 fn test_property_reference_bad_ref() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@what.x" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Err(DocError::NoSuchProperty));
+    assert_eq!(doc.get_property_value(&ent, "y"), Err(DocError::NoSuchProperty("y".to_string())));
 }
 
 #[test]
