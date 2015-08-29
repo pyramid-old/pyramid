@@ -10,13 +10,12 @@ use std::rc::Rc;
 
 use document::*;
 use propnode::*;
-use interface;
-use interface::SubSystem;
+use interface::*;
 
 pub struct System {
     document: Document,
     prev_frame_time: time::Timespec,
-    sub_systems: Vec<Rc<RefCell<Box<SubSystem>>>>,
+    sub_systems: Vec<Rc<RefCell<Box<ISubSystem>>>>,
     invalidated_properties: Vec<PropRef>,
     pub running: bool
 }
@@ -32,7 +31,7 @@ impl System {
         };
         return pyramid;
     }
-    pub fn add_subsystem(&mut self, subsystem: Box<interface::SubSystem>) {
+    pub fn add_subsystem(&mut self, subsystem: Box<ISubSystem>) {
         self.sub_systems.push(Rc::new(RefCell::new(subsystem)));
     }
     pub fn set_document(&mut self, document: Document) {
@@ -66,7 +65,7 @@ impl System {
     }
 }
 
-impl interface::System for System {
+impl ISystem for System {
     fn append_entity(&mut self, parent: &EntityId, type_name: String, name: Option<String>) -> Result<EntityId, DocError> {
         match self.document.append_entity(parent.clone(), type_name, name) {
             Ok(entity_id) => {

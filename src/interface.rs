@@ -4,7 +4,7 @@ use time;
 use propnode::*;
 use document::*;
 
-pub trait System {
+pub trait ISystem {
     fn append_entity(&mut self, parent: &EntityId, type_name: String, name: Option<String>) -> Result<EntityId, DocError>;
     fn get_entity_by_name(&self, name: &str) -> Option<EntityId>;
     fn set_property(&mut self, entity_id: &EntityId, name: String, value: PropNode);
@@ -19,14 +19,14 @@ pub trait System {
     fn exit(&mut self);
 }
 
-pub trait SubSystem {
-    fn on_document_loaded(&mut self, system: &mut System) {
+pub trait ISubSystem {
+    fn on_document_loaded(&mut self, system: &mut ISystem) {
         let entities: Vec<EntityId> = { system.get_entities().map(|x| x.clone()).collect() };
         for entity_id in entities {
             self.on_entity_added(system, &entity_id);
         }
     }
-    fn on_entity_added(&mut self, system: &mut System, entity_id: &EntityId) {}
-    fn on_property_value_change(&mut self, system: &mut System, prop_refs: &Vec<PropRef>) {}
-    fn update(&mut self, system: &mut System, delta_time: time::Duration) {}
+    fn on_entity_added(&mut self, system: &mut ISystem, entity_id: &EntityId) {}
+    fn on_property_value_change(&mut self, system: &mut ISystem, prop_refs: &Vec<PropRef>) {}
+    fn update(&mut self, system: &mut ISystem, delta_time: time::Duration) {}
 }
