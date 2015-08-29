@@ -160,6 +160,12 @@ impl Document {
             None => Err(DocError::NoSuchEntity)
         }
     }
+    pub fn has_property(&self, entity_id: &EntityId, name: &str) -> Result<bool, DocError> {
+        match self.entities.get(entity_id) {
+            Some(entity) => Ok(entity.properties.contains_key(name)),
+            None => Err(DocError::NoSuchEntity)
+        }
+    }
     pub fn get_properties(&self, entity_id: &EntityId) -> Result<Vec<PropRef>, DocError> {
         match self.entities.get(&entity_id) {
             Some(entity) => Ok(entity.properties.keys().map(|key| PropRef { entity_id: entity_id.clone(), property_key: key.clone() }).collect()),

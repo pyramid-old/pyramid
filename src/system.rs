@@ -86,6 +86,9 @@ impl interface::System for System {
     fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<PropNode, DocError> {
         self.document.get_property_value(entity_id, name)
     }
+    fn has_property(&self, entity_id: &EntityId, name: &str) -> Result<bool, DocError> {
+        self.document.has_property(entity_id, name)
+    }
     fn resolve_named_prop_ref(&self, entity_id: &EntityId, named_prop_ref: &NamedPropRef) -> Result<PropRef, DocError> {
         self.document.resolve_named_prop_ref(entity_id, named_prop_ref)
     }
