@@ -29,6 +29,8 @@ pub enum PropNode {
     DependencyReference(NamedPropRef),
     Reference(NamedPropRef),
     Array(Vec<PropNode>),
+    FloatArray(Vec<f32>),
+    IntegerArray(Vec<i64>),
     Object(HashMap<String, PropNode>),
     Float(f32),
     Integer(i64),
@@ -119,19 +121,29 @@ impl PropNode {
         }
     }
     pub fn as_float_array(&self) -> Result<Vec<f32>, PropTranslateErr> {
-        let arr = try!(self.as_array());
-        let mut res_arr = vec![];
-        for v in arr {
-            res_arr.push(*try!(v.as_float()));
+        match self {
+            &PropNode::Array(ref arr) => {
+                let mut res_arr = vec![];
+                for v in arr {
+                    res_arr.push(*try!(v.as_float()));
+                }
+                return Ok(res_arr);
+            },
+            &PropNode::FloatArray(ref arr) => Ok(arr.clone()),
+            _ => Err(PropTranslateErr::MismatchType { expected: "Array or FloatArray".to_string(), found: format!("{:?}", self) })
         }
-        return Ok(res_arr);
     }
     pub fn as_integer_array(&self) -> Result<Vec<i64>, PropTranslateErr> {
-        let arr = try!(self.as_array());
-        let mut res_arr = vec![];
-        for v in arr {
-            res_arr.push(*try!(v.as_integer()));
+        match self {
+            &PropNode::Array(ref arr) => {
+                let mut res_arr = vec![];
+                for v in arr {
+                    res_arr.push(*try!(v.as_integer()));
+                }
+                return Ok(res_arr);
+            },
+            &PropNode::IntegerArray(ref arr) => Ok(arr.clone()),
+            _ => Err(PropTranslateErr::MismatchType { expected: "Array or IntegerArray".to_string(), found: format!("{:?}", self) })
         }
-        return Ok(res_arr);
     }
 }
