@@ -5,7 +5,7 @@ extern crate xml;
 extern crate time;
 
 #[macro_use]
-mod hashmap_macro;
+pub mod hashmap_macro;
 pub mod document;
 mod propnode_test;
 pub mod propnode;
