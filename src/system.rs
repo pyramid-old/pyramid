@@ -1,9 +1,6 @@
 
 extern crate time;
 
-use propnode_parser as propnode_parser;
-
-use std::collections::HashMap;
 use std::mem;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -17,6 +14,7 @@ pub struct System {
     prev_frame_time: time::Timespec,
     sub_systems: Vec<Rc<RefCell<Box<ISubSystem>>>>,
     invalidated_properties: Vec<PropRef>,
+    added_entities: Vec<EntityId>,
     pub running: bool
 }
 
@@ -27,6 +25,7 @@ impl System {
             prev_frame_time: time::get_time(),
             sub_systems: vec![],
             invalidated_properties: vec![],
+            added_entities: vec![],
             running: true
         };
         return pyramid;
@@ -47,9 +46,13 @@ impl System {
             system.borrow_mut().update(self, diff_time);
         }
         while {
+            let ae = mem::replace(&mut self.added_entities, vec![]);
+            for e in ae {
+                self.on_entity_added(&e);
+            }
             let ips = mem::replace(&mut self.invalidated_properties, vec![]);
             self.on_property_value_change(&ips);
-            self.invalidated_properties.len() > 0
+            self.invalidated_properties.len() > 0 || self.added_entities.len() > 0
         } {};
         self.prev_frame_time = t;
     }
@@ -69,7 +72,7 @@ impl ISystem for System {
     fn append_entity(&mut self, parent: &EntityId, type_name: String, name: Option<String>) -> Result<EntityId, DocError> {
         match self.document.append_entity(parent.clone(), type_name, name) {
             Ok(entity_id) => {
-                self.on_entity_added(&entity_id);
+                self.added_entities.push(entity_id);
                 Ok(entity_id)
             },
             err @ _ => err
@@ -78,9 +81,14 @@ impl ISystem for System {
     fn get_entity_by_name(&self, name: &str) -> Option<EntityId> {
         self.document.get_entity_by_name(name)
     }
-    fn set_property(&mut self, entity_id: &EntityId, name: String, value: PropNode) {
-        let invalid_props = self.document.set_property(entity_id, &name.as_str(), value).ok().unwrap();
-        self.invalidated_properties.push_all(&invalid_props);
+    fn set_property(&mut self, entity_id: &EntityId, name: String, value: PropNode) -> Result<(), DocError> {
+        match self.document.set_property(entity_id, &name.as_str(), value) {
+            Ok(invalid_props) => {
+                self.invalidated_properties.push_all(&invalid_props);
+                Ok(())
+            },
+            Err(err) => Err(err)
+        }
     }
     fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<PropNode, DocError> {
         self.document.get_property_value(entity_id, name)

@@ -7,19 +7,11 @@ use propnode::*;
 use std::fs::File;
 use std::io::BufReader;
 use std::collections::HashMap;
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::rc::Weak;
-use std::slice::Iter;
-use std::slice::IterMut;
-use std::borrow::Borrow;
-use std::io::Read;
 use std::collections::hash_map::Keys;
 use std::path::Path;
 use std::fs::PathExt;
 
 use xml::reader::EventReader;
-use xml::reader::Events;
 use xml::reader::events::*;
 
 #[derive(PartialEq, Debug, Clone)]
