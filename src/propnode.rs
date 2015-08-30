@@ -114,6 +114,13 @@ impl PropNode {
             _ => Err(PropTranslateErr::MismatchType { expected: "Object".to_string(), found: format!("{:?}", self) })
         }
     }
+    pub fn get_object_field(&self, field: &str) -> Result<&PropNode, PropTranslateErr> {
+        let obj = try!(self.as_object());
+        match obj.get(field) {
+            Some(ref value) => Ok(value),
+            None => Err(PropTranslateErr::NoSuchField { field: field.to_string() })
+        }
+    }
     pub fn as_array(&self) -> Result<&Vec<PropNode>, PropTranslateErr> {
         match self {
             &PropNode::Array(ref arr) => Ok(arr),
