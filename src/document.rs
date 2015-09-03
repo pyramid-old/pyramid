@@ -16,16 +16,16 @@ use xml::reader::events::*;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum DocError {
-    PropTranslateErr(PropTranslateErr),
+    PonTranslateErr(PonTranslateErr),
     BadReference,
     NoSuchProperty(String),
     NoSuchEntity,
     InvalidParent
 }
 
-impl From<PropTranslateErr> for DocError {
-    fn from(err: PropTranslateErr) -> DocError {
-        DocError::PropTranslateErr(err)
+impl From<PonTranslateErr> for DocError {
+    fn from(err: PonTranslateErr) -> DocError {
+        DocError::PonTranslateErr(err)
     }
 }
 

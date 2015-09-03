@@ -50,7 +50,7 @@ impl Eq for Pon {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub enum PropTranslateErr {
+pub enum PonTranslateErr {
     MismatchType { expected: String, found: String },
     NoSuchField { field: String },
     UnrecognizedTypedPon(String),
@@ -78,56 +78,56 @@ impl Pon {
             _ => {}
         }
     }
-    pub fn as_transform(&self) -> Result<&TypedPon, PropTranslateErr> {
+    pub fn as_transform(&self) -> Result<&TypedPon, PonTranslateErr> {
         match self {
             &Pon::TypedPon(box ref transform) => Ok(transform),
-            _ => Err(PropTranslateErr::MismatchType { expected: "TypedPon".to_string(), found: format!("{:?}", self) })
+            _ => Err(PonTranslateErr::MismatchType { expected: "TypedPon".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn as_float(&self) -> Result<&f32, PropTranslateErr> {
+    pub fn as_float(&self) -> Result<&f32, PonTranslateErr> {
         match self {
             &Pon::Float(ref v) => Ok(v),
-            _ => Err(PropTranslateErr::MismatchType { expected: "Float".to_string(), found: format!("{:?}", self) })
+            _ => Err(PonTranslateErr::MismatchType { expected: "Float".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn as_integer(&self) -> Result<&i64, PropTranslateErr> {
+    pub fn as_integer(&self) -> Result<&i64, PonTranslateErr> {
         match self {
             &Pon::Integer(ref v) => Ok(v),
-            _ => Err(PropTranslateErr::MismatchType { expected: "Integer".to_string(), found: format!("{:?}", self) })
+            _ => Err(PonTranslateErr::MismatchType { expected: "Integer".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn as_string(&self) -> Result<&String, PropTranslateErr> {
+    pub fn as_string(&self) -> Result<&String, PonTranslateErr> {
         match self {
             &Pon::String(ref v) => Ok(v),
-            _ => Err(PropTranslateErr::MismatchType { expected: "String".to_string(), found: format!("{:?}", self) })
+            _ => Err(PonTranslateErr::MismatchType { expected: "String".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn as_reference(&self) -> Result<&NamedPropRef, PropTranslateErr> {
+    pub fn as_reference(&self) -> Result<&NamedPropRef, PonTranslateErr> {
         match self {
             &Pon::Reference(ref v) => Ok(v),
-            _ => Err(PropTranslateErr::MismatchType { expected: "Reference".to_string(), found: format!("{:?}", self) })
+            _ => Err(PonTranslateErr::MismatchType { expected: "Reference".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn as_object(&self) -> Result<&HashMap<String, Pon>, PropTranslateErr> {
+    pub fn as_object(&self) -> Result<&HashMap<String, Pon>, PonTranslateErr> {
         match self {
             &Pon::Object(ref hm) => Ok(hm),
-            _ => Err(PropTranslateErr::MismatchType { expected: "Object".to_string(), found: format!("{:?}", self) })
+            _ => Err(PonTranslateErr::MismatchType { expected: "Object".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn get_object_field(&self, field: &str) -> Result<&Pon, PropTranslateErr> {
+    pub fn get_object_field(&self, field: &str) -> Result<&Pon, PonTranslateErr> {
         let obj = try!(self.as_object());
         match obj.get(field) {
             Some(ref value) => Ok(value),
-            None => Err(PropTranslateErr::NoSuchField { field: field.to_string() })
+            None => Err(PonTranslateErr::NoSuchField { field: field.to_string() })
         }
     }
-    pub fn as_array(&self) -> Result<&Vec<Pon>, PropTranslateErr> {
+    pub fn as_array(&self) -> Result<&Vec<Pon>, PonTranslateErr> {
         match self {
             &Pon::Array(ref arr) => Ok(arr),
-            _ => Err(PropTranslateErr::MismatchType { expected: "Array".to_string(), found: format!("{:?}", self) })
+            _ => Err(PonTranslateErr::MismatchType { expected: "Array".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn as_float_array(&self) -> Result<Vec<f32>, PropTranslateErr> {
+    pub fn as_float_array(&self) -> Result<Vec<f32>, PonTranslateErr> {
         match self {
             &Pon::Array(ref arr) => {
                 let mut res_arr = vec![];
@@ -137,10 +137,10 @@ impl Pon {
                 return Ok(res_arr);
             },
             &Pon::FloatArray(ref arr) => Ok(arr.clone()),
-            _ => Err(PropTranslateErr::MismatchType { expected: "Array or FloatArray".to_string(), found: format!("{:?}", self) })
+            _ => Err(PonTranslateErr::MismatchType { expected: "Array or FloatArray".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn as_integer_array(&self) -> Result<Vec<i64>, PropTranslateErr> {
+    pub fn as_integer_array(&self) -> Result<Vec<i64>, PonTranslateErr> {
         match self {
             &Pon::Array(ref arr) => {
                 let mut res_arr = vec![];
@@ -150,7 +150,7 @@ impl Pon {
                 return Ok(res_arr);
             },
             &Pon::IntegerArray(ref arr) => Ok(arr.clone()),
-            _ => Err(PropTranslateErr::MismatchType { expected: "Array or IntegerArray".to_string(), found: format!("{:?}", self) })
+            _ => Err(PonTranslateErr::MismatchType { expected: "Array or IntegerArray".to_string(), found: format!("{:?}", self) })
         }
     }
 }
