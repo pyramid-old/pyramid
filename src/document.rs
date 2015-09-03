@@ -1,8 +1,8 @@
 
 extern crate xml;
-peg_file! propnode_parse("propnode.rustpeg");
+peg_file! pon_parse("pon.rustpeg");
 
-use propnode::*;
+use pon::*;
 
 use std::fs::File;
 use std::io::BufReader;
@@ -37,7 +37,7 @@ pub type PropertyIter<'a> = Keys<'a, String, Property>;
 
 #[derive(Debug)]
 struct Property {
-    expression: PropNode,
+    expression: Pon,
     dependants: Vec<PropRef>
 }
 
@@ -107,7 +107,7 @@ impl Document {
         &self.root
     }
     // returns all props that were invalidated
-    pub fn set_property(&mut self, entity_id: &EntityId, name: &str, expression: PropNode) -> Result<Vec<PropRef>, DocError> {
+    pub fn set_property(&mut self, entity_id: &EntityId, name: &str, expression: Pon) -> Result<Vec<PropRef>, DocError> {
         //println!("set property {} {:?}", name, expression);
         let mut dependencies: Vec<PropRef> = {
             let entity = match self.entities.get(entity_id) {
@@ -146,7 +146,7 @@ impl Document {
         try!(self.build_property_cascades(entity, name.to_string(), &mut cascades));
         return Ok(cascades);
     }
-    pub fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<PropNode, DocError> {
+    pub fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Pon, DocError> {
         match self.entities.get(entity_id) {
             Some(entity) => self.get_entity_property_value(entity, name.to_string()),
             None => Err(DocError::NoSuchEntity)
@@ -205,7 +205,7 @@ impl Document {
     }
 
 
-    fn build_property_node_dependencies(&self, entity: &Entity, node: &PropNode) -> Result<Vec<PropRef>, DocError> {
+    fn build_property_node_dependencies(&self, entity: &Entity, node: &Pon) -> Result<Vec<PropRef>, DocError> {
         let mut named_refs = vec![];
         node.get_dependency_references(&mut named_refs);
         let mut refs = vec![];
@@ -229,31 +229,31 @@ impl Document {
         }
     }
 
-    fn resolve_property_node_value(&self, entity: &Entity, node: &PropNode) -> Result<PropNode, DocError> {
+    fn resolve_property_node_value(&self, entity: &Entity, node: &Pon) -> Result<Pon, DocError> {
         match node {
-            &PropNode::PropTransform(box PropTransform { ref name, ref arg }) =>
-                Ok(PropNode::PropTransform(Box::new(PropTransform {
+            &Pon::PropTransform(box PropTransform { ref name, ref arg }) =>
+                Ok(Pon::PropTransform(Box::new(PropTransform {
                     name: name.clone(),
                     arg: try!(self.resolve_property_node_value(entity, arg))
                 }))),
-            &PropNode::DependencyReference(ref named_prop_ref) => {
+            &Pon::DependencyReference(ref named_prop_ref) => {
                 let prop_ref = try!(self.resolve_named_prop_ref(&entity.id, &named_prop_ref));
                 match self.entities.get(&prop_ref.entity_id) {
                     Some(entity) => self.get_entity_property_value(entity, prop_ref.property_key.clone()),
                     None => Err(DocError::BadReference)
                 }
             },
-            &PropNode::Object(ref hm) => Ok(PropNode::Object(hm.iter().map(|(k,v)| {
+            &Pon::Object(ref hm) => Ok(Pon::Object(hm.iter().map(|(k,v)| {
                     (k.clone(), self.resolve_property_node_value(entity, v).unwrap())
                 }).collect())),
-            &PropNode::Array(ref arr) => Ok(PropNode::Array(arr.iter().map(|v| {
+            &Pon::Array(ref arr) => Ok(Pon::Array(arr.iter().map(|v| {
                     self.resolve_property_node_value(entity, v).unwrap()
                 }).collect())),
             _ => Ok(node.clone())
         }
     }
 
-    fn get_entity_property_value(&self, entity: &Entity, name: String) -> Result<PropNode, DocError> {
+    fn get_entity_property_value(&self, entity: &Entity, name: String) -> Result<Pon, DocError> {
         match entity.properties.get(&name) {
             Some(prop) => self.resolve_property_node_value(entity, &prop.expression),
             None => Err(DocError::NoSuchProperty(name.to_string()))
@@ -291,7 +291,7 @@ impl Document {
 
                     for attribute in attributes {
                         if (attribute.name.local_name == "name") { continue; }
-                        match propnode_parse::body(&attribute.value) {
+                        match pon_parse::body(&attribute.value) {
                             Ok(node) => self.set_property(&entity_id, &attribute.name.local_name, node),
                             Err(err) => panic!("Error parsing: {} error: {:?}", attribute.value, err)
                         };
@@ -322,7 +322,7 @@ fn event_reader_from_file(path: &Path) -> EventReader<BufReader<File>> {
 fn test_property_get() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "x"), Ok(propnode_parse::body("5.0").unwrap()));
+    assert_eq!(doc.get_property_value(&ent, "x"), Ok(pon_parse::body("5.0").unwrap()));
 }
 
 #[test]
@@ -330,37 +330,37 @@ fn test_property_set() {
     let mut doc = Document::from_string(r#"<Entity name="tmp" x="5.0" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
     {
-        doc.set_property(&ent, "x", PropNode::Integer(9));
+        doc.set_property(&ent, "x", Pon::Integer(9));
     }
-    assert_eq!(doc.get_property_value(&ent, "x"), Ok(propnode_parse::body("9").unwrap()));
+    assert_eq!(doc.get_property_value(&ent, "x"), Ok(pon_parse::body("9").unwrap()));
 }
 
 #[test]
 fn test_property_reference_straight() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@this.x" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(propnode_parse::body("5.0").unwrap()));
+    assert_eq!(doc.get_property_value(&ent, "y"), Ok(pon_parse::body("5.0").unwrap()));
 }
 
 #[test]
 fn test_property_reference_object() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="{ some: @this.x }" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(propnode_parse::body("{ some: 5.0 }").unwrap()));
+    assert_eq!(doc.get_property_value(&ent, "y"), Ok(pon_parse::body("{ some: 5.0 }").unwrap()));
 }
 
 #[test]
 fn test_property_reference_transfer() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="something @this.x" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(propnode_parse::body("something 5.0").unwrap()));
+    assert_eq!(doc.get_property_value(&ent, "y"), Ok(pon_parse::body("something 5.0").unwrap()));
 }
 
 #[test]
 fn test_property_reference_array() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="[@this.x]" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(propnode_parse::body("[5.0]").unwrap()));
+    assert_eq!(doc.get_property_value(&ent, "y"), Ok(pon_parse::body("[5.0]").unwrap()));
 }
 
 #[test]
@@ -374,7 +374,7 @@ fn test_property_reference_bad_ref() {
 fn test_property_reference_parent() {
     let doc = Document::from_string(r#"<Entity x="5.0"><Entity name="tmp" y="@parent.x" /></Entity>"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(PropNode::Float(5.0)));
+    assert_eq!(doc.get_property_value(&ent, "y"), Ok(Pon::Float(5.0)));
 }
 
 #[test]
@@ -382,10 +382,10 @@ fn test_property_reference_update() {
     let mut doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@this.x" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
     {
-        let cascades = doc.set_property(&ent, "x", PropNode::Integer(9)).ok().unwrap();
+        let cascades = doc.set_property(&ent, "x", Pon::Integer(9)).ok().unwrap();
         assert_eq!(cascades.len(), 2);
         assert_eq!(cascades[0], PropRef { entity_id: ent, property_key: "x".to_string() });
         assert_eq!(cascades[1], PropRef { entity_id: ent, property_key: "y".to_string() });
     }
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(propnode_parse::body("9").unwrap()));
+    assert_eq!(doc.get_property_value(&ent, "y"), Ok(pon_parse::body("9").unwrap()));
 }

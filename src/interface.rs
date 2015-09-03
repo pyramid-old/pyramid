@@ -1,14 +1,14 @@
 
 use time;
 
-use propnode::*;
+use pon::*;
 use document::*;
 
 pub trait ISystem {
     fn append_entity(&mut self, parent: &EntityId, type_name: String, name: Option<String>) -> Result<EntityId, DocError>;
     fn get_entity_by_name(&self, name: &str) -> Option<EntityId>;
-    fn set_property(&mut self, entity_id: &EntityId, name: String, value: PropNode) -> Result<(), DocError>;
-    fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<PropNode, DocError>;
+    fn set_property(&mut self, entity_id: &EntityId, name: String, value: Pon) -> Result<(), DocError>;
+    fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Pon, DocError>;
     fn has_property(&self, entity_id: &EntityId, name: &str) -> Result<bool, DocError>;
     fn resolve_named_prop_ref(&self, entity_id: &EntityId, named_prop_ref: &NamedPropRef) -> Result<PropRef, DocError>;
     fn get_entity_type_name(&self, entity_id: &EntityId) -> Result<&String, DocError>;

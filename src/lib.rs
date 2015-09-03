@@ -7,14 +7,14 @@ extern crate time;
 #[macro_use]
 pub mod hashmap_macro;
 pub mod document;
-mod propnode_test;
-pub mod propnode;
+mod pon_test;
+pub mod pon;
 pub mod system;
 pub mod interface;
 
-pub mod propnode_parser {
-    peg_file! propnode_peg("propnode.rustpeg");
-    use propnode;
+pub mod pon_parser {
+    peg_file! pon_peg("pon.rustpeg");
+    use pon;
     #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct ParseError {
         pub line: usize,
@@ -22,8 +22,8 @@ pub mod propnode_parser {
         pub offset: usize,
         pub expected: ::std::collections::HashSet<&'static str>,
     }
-    pub fn parse(text: &str) -> Result<propnode::PropNode, ParseError> {
-        match propnode_peg::body(text) {
+    pub fn parse(text: &str) -> Result<pon::Pon, ParseError> {
+        match pon_peg::body(text) {
             Ok(node) => Ok(node),
             Err(err) => Err(ParseError {
                 line: err.line,

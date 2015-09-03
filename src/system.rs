@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use document::*;
-use propnode::*;
+use pon::*;
 use interface::*;
 
 pub struct System {
@@ -81,7 +81,7 @@ impl ISystem for System {
     fn get_entity_by_name(&self, name: &str) -> Option<EntityId> {
         self.document.get_entity_by_name(name)
     }
-    fn set_property(&mut self, entity_id: &EntityId, name: String, value: PropNode) -> Result<(), DocError> {
+    fn set_property(&mut self, entity_id: &EntityId, name: String, value: Pon) -> Result<(), DocError> {
         match self.document.set_property(entity_id, &name.as_str(), value) {
             Ok(invalid_props) => {
                 self.invalidated_properties.push_all(&invalid_props);
@@ -90,7 +90,7 @@ impl ISystem for System {
             Err(err) => Err(err)
         }
     }
-    fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<PropNode, DocError> {
+    fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Pon, DocError> {
         self.document.get_property_value(entity_id, name)
     }
     fn has_property(&self, entity_id: &EntityId, name: &str) -> Result<bool, DocError> {
