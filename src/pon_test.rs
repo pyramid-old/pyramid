@@ -86,7 +86,7 @@ fn test_array_two() {
 #[test]
 fn test_transform_nil() {
     let v = pon_parse::body("static_mesh()");
-    assert_eq!(v, Ok(Pon::PropTransform(Box::new(PropTransform { name: "static_mesh".to_string(), arg: Pon::Nil }))));
+    assert_eq!(v, Ok(Pon::TypedPon(Box::new(TypedPon { name: "static_mesh".to_string(), arg: Pon::Nil }))));
 }
 
 #[test]
@@ -95,13 +95,13 @@ fn test_transform_arg() {
     let mut hm = HashMap::new();
     hm.insert("vertices".to_string(), Pon::Array(vec![Pon::Float(0.0), Pon::Float(-0.5)]));
     hm.insert("indices".to_string(),  Pon::Array(vec![Pon::Integer(0), Pon::Integer(1)]));
-    assert_eq!(v, Ok(Pon::PropTransform(Box::new(PropTransform { name: "static_mesh".to_string(), arg: Pon::Object(hm) }))));
+    assert_eq!(v, Ok(Pon::TypedPon(Box::new(TypedPon { name: "static_mesh".to_string(), arg: Pon::Object(hm) }))));
 }
 
 #[test]
 fn test_transform_number() {
     let v = pon_parse::body("static_mesh 5.0");
-    assert_eq!(v, Ok(Pon::PropTransform(Box::new(PropTransform { name: "static_mesh".to_string(), arg: Pon::Float(5.0) }))));
+    assert_eq!(v, Ok(Pon::TypedPon(Box::new(TypedPon { name: "static_mesh".to_string(), arg: Pon::Float(5.0) }))));
 }
 
 #[test]

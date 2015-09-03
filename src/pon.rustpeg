@@ -9,10 +9,10 @@ node -> Pon
   = float / integer / string / object / array / nil / transform / dependency_reference / reference
 
 transform -> Pon
-  = name:identifier sep* arg:node sep* {
-    Pon::PropTransform(Box::new(PropTransform {
-      name: name.to_string(),
-      arg: arg
+  = type_name:identifier sep* data:node sep* {
+    Pon::TypedPon(Box::new(TypedPon {
+      type_name: type_name.to_string(),
+      data: data
     }))
   }
 

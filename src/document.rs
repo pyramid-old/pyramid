@@ -231,10 +231,10 @@ impl Document {
 
     fn resolve_property_node_value(&self, entity: &Entity, node: &Pon) -> Result<Pon, DocError> {
         match node {
-            &Pon::PropTransform(box PropTransform { ref name, ref arg }) =>
-                Ok(Pon::PropTransform(Box::new(PropTransform {
-                    name: name.clone(),
-                    arg: try!(self.resolve_property_node_value(entity, arg))
+            &Pon::TypedPon(box TypedPon { ref type_name, ref data }) =>
+                Ok(Pon::TypedPon(Box::new(TypedPon {
+                    type_name: type_name.clone(),
+                    data: try!(self.resolve_property_node_value(entity, data))
                 }))),
             &Pon::DependencyReference(ref named_prop_ref) => {
                 let prop_ref = try!(self.resolve_named_prop_ref(&entity.id, &named_prop_ref));

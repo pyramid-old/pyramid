@@ -18,14 +18,14 @@ pub struct PropRef {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct PropTransform {
-    pub name: String,
-    pub arg: Pon
+pub struct TypedPon {
+    pub type_name: String,
+    pub data: Pon
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Pon {
-    PropTransform(Box<PropTransform>),
+    TypedPon(Box<TypedPon>),
     DependencyReference(NamedPropRef),
     Reference(NamedPropRef),
     Array(Vec<Pon>),
@@ -53,15 +53,15 @@ impl Eq for Pon {
 pub enum PropTranslateErr {
     MismatchType { expected: String, found: String },
     NoSuchField { field: String },
-    UnrecognizedPropTransform(String),
+    UnrecognizedTypedPon(String),
     Generic(String)
 }
 
 impl Pon {
     pub fn get_dependency_references(&self, references: &mut Vec<NamedPropRef>) {
         match self {
-            &Pon::PropTransform(box PropTransform { ref name, ref arg } ) =>
-                arg.get_dependency_references(references),
+            &Pon::TypedPon(box TypedPon { ref type_name, ref data } ) =>
+                data.get_dependency_references(references),
             &Pon::DependencyReference(ref reference) => {
                 references.push(reference.clone());
             },
@@ -78,10 +78,10 @@ impl Pon {
             _ => {}
         }
     }
-    pub fn as_transform(&self) -> Result<&PropTransform, PropTranslateErr> {
+    pub fn as_transform(&self) -> Result<&TypedPon, PropTranslateErr> {
         match self {
-            &Pon::PropTransform(box ref transform) => Ok(transform),
-            _ => Err(PropTranslateErr::MismatchType { expected: "PropTransform".to_string(), found: format!("{:?}", self) })
+            &Pon::TypedPon(box ref transform) => Ok(transform),
+            _ => Err(PropTranslateErr::MismatchType { expected: "TypedPon".to_string(), found: format!("{:?}", self) })
         }
     }
     pub fn as_float(&self) -> Result<&f32, PropTranslateErr> {
