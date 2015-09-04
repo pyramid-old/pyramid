@@ -67,6 +67,18 @@ impl Eq for Pon {
     // This "works" because it derives PartialEq, so there's already an Eq method on it
 }
 
+
+pub trait ToPon {
+    fn to_pon(&self) -> Pon;
+}
+
+impl ToPon for Pon {
+    fn to_pon(&self) -> Pon {
+        self.clone()
+    }
+}
+
+
 pub trait Translatable<'a, 'b, T, C> {
     fn translate(&'a self, context: &'b C) -> Result<T, PonTranslateErr>;
 }

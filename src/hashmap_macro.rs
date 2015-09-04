@@ -5,7 +5,7 @@ macro_rules! hashmap(
         {
             let mut m = ::std::collections::HashMap::new();
             $(
-                m.insert($key, $value);
+                m.insert(::std::convert::From::from($key), $value);
             )+
             m
         }

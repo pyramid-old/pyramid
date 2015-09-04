@@ -21,6 +21,25 @@ impl<'a, 'b, C> Translatable<'a, 'b, Vector3<f32>, C> for Pon {
     }
 }
 
+impl ToPon for Vector3<f32> {
+    fn to_pon(&self) -> Pon {
+        Pon::TypedPon(Box::new(TypedPon {
+            type_name: "vec3".to_string(),
+            data: Pon::Object(hashmap!(
+                "x" => Pon::Float(self.x),
+                "y" => Pon::Float(self.y),
+                "z" => Pon::Float(self.z)
+            ))
+        }))
+    }
+}
+
+#[test]
+fn test_vec3_to_pon() {
+    let v = Vector3::new(1.0, 2.0, 3.0);
+    assert_eq!(v.to_pon(), Pon::from_string("vec3 { x: 1.0, y: 2.0, z: 3.0 }").unwrap());
+}
+
 impl<'a, 'b, C> Translatable<'a, 'b, Matrix4<f32>, C> for Pon {
     fn translate(&'a self, context: &'b C) -> Result<Matrix4<f32>, PonTranslateErr> {
         let &TypedPon { ref type_name, ref data } = from_pon!(self, self, context);
