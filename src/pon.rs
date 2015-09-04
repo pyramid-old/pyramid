@@ -10,20 +10,6 @@ use std::hash::Hash;
 use std::cmp::Eq;
 use std::borrow::Cow;
 
-#[macro_export]
-macro_rules! from_pon {
-    ($self_:expr, $node:expr, $context:expr) => (match ($node).translate($context) {
-        ::std::result::Result::Ok(val) => val,
-        ::std::result::Result::Err(err) => {
-            return ::std::result::Result::Err($crate::pon::PonTranslateErr::InnerError {
-                pon: $self_.clone(),
-                failing_inner_pon: $node.clone(),
-                error: ::std::boxed::Box::new(::std::convert::From::from(err))
-            });
-        }
-    })
-}
-
 #[derive(PartialEq, Debug, Clone)]
 pub struct NamedPropRef {
     pub entity_name: String,
@@ -80,12 +66,12 @@ impl ToPon for Pon {
 }
 
 
-pub trait Translatable<'a, 'b, T, C> {
-    fn translate(&'a self, context: &'b C) -> Result<T, PonTranslateErr>;
+pub trait Translatable<'a, T> {
+    fn inner_translate(&'a self) -> Result<T, PonTranslateErr>;
 }
 
-impl<'a, 'b, C> Translatable<'a, 'b, &'a TypedPon, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<&'a TypedPon, PonTranslateErr> {
+impl<'a> Translatable<'a, &'a TypedPon> for Pon {
+    fn inner_translate(&'a self) -> Result<&'a TypedPon, PonTranslateErr> {
         match self {
             &Pon::TypedPon(ref value) => Ok(&value),
             _ => Err(PonTranslateErr::MismatchType { expected: "TypedPon".to_string(), found: format!("{:?}", self) })
@@ -93,48 +79,48 @@ impl<'a, 'b, C> Translatable<'a, 'b, &'a TypedPon, C> for Pon {
     }
 }
 
-impl<'a, 'b, C> Translatable<'a, 'b, &'a f32, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<&'a f32, PonTranslateErr> {
+impl<'a> Translatable<'a, &'a f32> for Pon {
+    fn inner_translate(&'a self) -> Result<&'a f32, PonTranslateErr> {
         match self {
             &Pon::Float(ref value) => Ok(&value),
             _ => Err(PonTranslateErr::MismatchType { expected: "Float".to_string(), found: format!("{:?}", self) })
         }
     }
 }
-impl<'a, 'b, C> Translatable<'a, 'b, f32, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<f32, PonTranslateErr> {
+impl<'a> Translatable<'a, f32> for Pon {
+    fn inner_translate(&'a self) -> Result<f32, PonTranslateErr> {
         match self {
             &Pon::Float(ref value) => Ok(*value),
             _ => Err(PonTranslateErr::MismatchType { expected: "Float".to_string(), found: format!("{:?}", self) })
         }
     }
 }
-impl<'a, 'b, C> Translatable<'a, 'b, &'a i64, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<&'a i64, PonTranslateErr> {
+impl<'a> Translatable<'a, &'a i64> for Pon {
+    fn inner_translate(&'a self) -> Result<&'a i64, PonTranslateErr> {
         match self {
             &Pon::Integer(ref value) => Ok(&value),
             _ => Err(PonTranslateErr::MismatchType { expected: "Integer".to_string(), found: format!("{:?}", self) })
         }
     }
 }
-impl<'a, 'b, C> Translatable<'a, 'b, i64, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<i64, PonTranslateErr> {
+impl<'a> Translatable<'a, i64> for Pon {
+    fn inner_translate(&'a self) -> Result<i64, PonTranslateErr> {
         match self {
             &Pon::Integer(ref value) => Ok(*value),
             _ => Err(PonTranslateErr::MismatchType { expected: "Integer".to_string(), found: format!("{:?}", self) })
         }
     }
 }
-impl<'a, 'b, C> Translatable<'a, 'b, &'a str, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<&'a str, PonTranslateErr> {
+impl<'a> Translatable<'a, &'a str> for Pon {
+    fn inner_translate(&'a self) -> Result<&'a str, PonTranslateErr> {
         match self {
             &Pon::String(ref value) => Ok(&value),
             _ => Err(PonTranslateErr::MismatchType { expected: "String".to_string(), found: format!("{:?}", self) })
         }
     }
 }
-impl<'a, 'b, C> Translatable<'a, 'b, Cow<'a, Vec<f32>>, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<Cow<'a, Vec<f32>>, PonTranslateErr> {
+impl<'a> Translatable<'a, Cow<'a, Vec<f32>>> for Pon {
+    fn inner_translate(&'a self) -> Result<Cow<'a, Vec<f32>>, PonTranslateErr> {
         match self {
             &Pon::Array(ref arr) => {
                 let mut res_arr = vec![];
@@ -148,8 +134,8 @@ impl<'a, 'b, C> Translatable<'a, 'b, Cow<'a, Vec<f32>>, C> for Pon {
         }
     }
 }
-impl<'a, 'b, C> Translatable<'a, 'b, Cow<'a, Vec<i64>>, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<Cow<'a, Vec<i64>>, PonTranslateErr> {
+impl<'a> Translatable<'a, Cow<'a, Vec<i64>>> for Pon {
+    fn inner_translate(&'a self) -> Result<Cow<'a, Vec<i64>>, PonTranslateErr> {
         match self {
             &Pon::Array(ref arr) => {
                 let mut res_arr = vec![];
@@ -163,26 +149,26 @@ impl<'a, 'b, C> Translatable<'a, 'b, Cow<'a, Vec<i64>>, C> for Pon {
         }
     }
 }
-impl<'a, 'b, C> Translatable<'a, 'b, &'a Vec<Pon>, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<&'a Vec<Pon>, PonTranslateErr> {
+impl<'a> Translatable<'a, &'a Vec<Pon>> for Pon {
+    fn inner_translate(&'a self) -> Result<&'a Vec<Pon>, PonTranslateErr> {
         match self {
             &Pon::Array(ref value) => Ok(&value),
             _ => Err(PonTranslateErr::MismatchType { expected: "Array".to_string(), found: format!("{:?}", self) })
         }
     }
 }
-impl<'a, 'b, T, C> Translatable<'a, 'b, Vec<T>, C> for Pon where Pon: Translatable<'a, 'b, T, C> + Translatable<'a, 'b, &'a Vec<Pon>, C> {
-    fn translate(&'a self, context: &'b C) -> Result<Vec<T>, PonTranslateErr> {
-        let source: &Vec<Pon> = try!(self.translate(context));
+impl<'a, T> Translatable<'a, Vec<T>> for Pon where Pon: Translatable<'a, T> {
+    fn inner_translate(&'a self) -> Result<Vec<T>, PonTranslateErr> {
+        let source: &Vec<Pon> = try!(self.translate::<&Vec<Pon>>());
         let mut out = vec![];
         for v in source {
-            out.push(from_pon!(self, v, context));
+            out.push(try!(v.translate()));
         }
         Ok(out)
     }
 }
-impl<'a, 'b, C> Translatable<'a, 'b, &'a HashMap<String, Pon>, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<&'a HashMap<String, Pon>, PonTranslateErr> {
+impl<'a> Translatable<'a, &'a HashMap<String, Pon>> for Pon {
+    fn inner_translate(&'a self) -> Result<&'a HashMap<String, Pon>, PonTranslateErr> {
         match self {
             &Pon::Object(ref value) => Ok(&value),
             _ => Err(PonTranslateErr::MismatchType { expected: "Object".to_string(), found: format!("{:?}", self) })
@@ -190,75 +176,15 @@ impl<'a, 'b, C> Translatable<'a, 'b, &'a HashMap<String, Pon>, C> for Pon {
     }
 }
 
-pub struct DependencyReferenceContext;
-impl<'a, 'b> Translatable<'a, 'b, &'a NamedPropRef, DependencyReferenceContext> for Pon {
-    fn translate(&'a self, _: &'b DependencyReferenceContext) -> Result<&'a NamedPropRef, PonTranslateErr> {
-        match self {
-            &Pon::DependencyReference(ref value) => Ok(&value),
-            _ => Err(PonTranslateErr::MismatchType { expected: "DependencyReference".to_string(), found: format!("{:?}", self) })
-        }
-    }
-}
-
-pub struct ReferenceContext;
-impl<'a, 'b> Translatable<'a, 'b, &'a NamedPropRef, ReferenceContext> for Pon {
-    fn translate(&'a self, _: &'b ReferenceContext) -> Result<&'a NamedPropRef, PonTranslateErr> {
-        match self {
-            &Pon::Reference(ref value) => Ok(&value),
-            _ => Err(PonTranslateErr::MismatchType { expected: "Reference".to_string(), found: format!("{:?}", self) })
-        }
-    }
-}
 
 
-pub struct GetFieldContext(String);
-impl<'a, 'b> Translatable<'a, 'b, &'a Pon, GetFieldContext> for Pon {
-    fn translate(&'a self, context: &'b GetFieldContext) -> Result<&'a Pon, PonTranslateErr> {
-        let &GetFieldContext(ref field) = context;
-        match self {
-            &Pon::Object(ref value) => match value.get(field) {
-                Some(value) => Ok(value),
-                None => Err(PonTranslateErr::NoSuchField { field: field.to_string() })
-            },
-            _ => Err(PonTranslateErr::MismatchType { expected: "Object".to_string(), found: format!("{:?}", self) })
-        }
-    }
-}
 
-
-#[test]
-fn test_translate_dependency_reference() {
-    let node = Pon::DependencyReference(NamedPropRef { entity_name: "test".to_string(), property_key: "x".to_string() });
-    let npr: &NamedPropRef = node.translate(&DependencyReferenceContext).unwrap();
-    assert_eq!(*npr, NamedPropRef { entity_name: "test".to_string(), property_key: "x".to_string() });
-}
 
 #[test]
 fn test_translate_integer() {
     let node = Pon::Integer(5);
-    let i: &i64 = node.translate(&()).unwrap();
+    let i: &i64 = node.translate().unwrap();
     assert_eq!(*i, 5);
-}
-
-#[test]
-fn test_translate_macro() {
-    #[derive(PartialEq, Debug)]
-    struct TestMacro { x: i64 }
-    impl<'a, 'b, C> Translatable<'a, 'b, TestMacro, C> for Pon {
-        fn translate(&'a self, context: &'b C) -> Result<TestMacro, PonTranslateErr> {
-            let x: &i64 = from_pon!(self, self, context);
-            Ok(TestMacro { x: *x })
-        }
-    }
-    let node = Pon::Integer(5);
-    assert_eq!(node.translate(&()), Ok(TestMacro { x: 5}));
-}
-
-#[test]
-fn test_translate_get_field() {
-    let node = Pon::Object(hashmap!( "hello".to_string() => Pon::Integer(5) ));
-    let field: &Pon = node.translate(&GetFieldContext("hello".to_string())).unwrap();
-    assert_eq!(*field, Pon::Integer(5));
 }
 
 
@@ -269,7 +195,7 @@ pub enum PonTranslateErr {
     NoSuchField { field: String },
     InvalidValue { value: String },
     UnrecognizedType(String),
-    InnerError { pon: Pon, failing_inner_pon: Pon, error: Box<PonTranslateErr> },
+    InnerError { in_pon: Pon, error: Box<PonTranslateErr> },
     Generic(String)
 }
 
@@ -297,49 +223,68 @@ impl Pon {
             _ => {}
         }
     }
+    pub fn translate<'a, T>(&'a self) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, T> {
+        match self.inner_translate() {
+            Ok(val) => Ok(val),
+            Err(err) => Err(PonTranslateErr::InnerError { in_pon: self.clone(), error: Box::new(err) })
+        }
+    }
 
     pub fn field(&self, field: &str) -> Result<&Pon, PonTranslateErr> {
-        self.translate(&GetFieldContext(field.to_string()))
+        match self {
+            &Pon::Object(ref value) => match value.get(field) {
+                Some(value) => Ok(value),
+                None => Err(PonTranslateErr::NoSuchField { field: field.to_string() })
+            },
+            _ => Err(PonTranslateErr::MismatchType { expected: "Object".to_string(), found: format!("{:?}", self) })
+        }
     }
-    pub fn field_as<'a, 'b, T, C>(&'a self, context: &'b C, field: &'a str) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T, C> {
-        try!(self.field(field)).translate(context)
+    pub fn field_as<'a, T>(&'a self, field: &'a str) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, T> {
+        try!(self.field(field)).translate()
     }
-    pub fn field_as_or<'a, 'b, T, C>(&'a self, context: &'b C, field: &'a str, or: T) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T, C> {
+    pub fn field_as_or<'a, T>(&'a self, field: &'a str, or: T) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, T> {
         match self.field(field) {
-            Ok(val) => val.translate(&context),
+            Ok(val) => val.translate(),
             Err(PonTranslateErr::NoSuchField { .. }) => Ok(or),
             Err(err) => Err(err)
         }
     }
 
+    pub fn as_reference(&self) -> Result<&NamedPropRef, PonTranslateErr> {
+        match self {
+            &Pon::Reference(ref value) => Ok(&value),
+            _ => Err(PonTranslateErr::MismatchType { expected: "Reference".to_string(), found: format!("{:?}", self) })
+        }
+    }
+
+
+    // deprecated
+
     pub fn as_transform(&self) -> Result<&TypedPon, PonTranslateErr> {
-        self.translate(&())
+        self.translate()
     }
     pub fn as_float(&self) -> Result<&f32, PonTranslateErr> {
-        self.translate(&())
+        self.translate()
     }
     pub fn as_integer(&self) -> Result<&i64, PonTranslateErr> {
-        self.translate(&())
+        self.translate()
     }
     pub fn as_string(&self) -> Result<&str, PonTranslateErr> {
-        self.translate(&())
-    }
-    pub fn as_reference(&self) -> Result<&NamedPropRef, PonTranslateErr> {
-        self.translate(&ReferenceContext)
+        self.translate()
     }
     pub fn as_object(&self) -> Result<&HashMap<String, Pon>, PonTranslateErr> {
-        self.translate(&())
+        self.translate()
     }
     pub fn get_object_field(&self, field: &str) -> Result<&Pon, PonTranslateErr> {
-        self.translate(&GetFieldContext(field.to_string()))
+        self.field(field)
     }
     pub fn as_array(&self) -> Result<&Vec<Pon>, PonTranslateErr> {
-        self.translate(&())
+        self.translate()
     }
     pub fn as_float_array(&self) -> Result<Cow<Vec<f32>>, PonTranslateErr> {
-        self.translate(&())
+        self.translate()
     }
     pub fn as_integer_array(&self) -> Result<Cow<Vec<i64>>, PonTranslateErr> {
-        self.translate(&())
+        self.translate()
     }
 }
