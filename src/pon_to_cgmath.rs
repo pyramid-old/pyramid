@@ -2,22 +2,36 @@ use pon::*;
 use cgmath::*;
 use std::borrow::Cow;
 
-impl<'a> Translatable<'a, Vector3<f32>> for Pon {
-    fn inner_translate(&'a self) -> Result<Vector3<f32>, PonTranslateErr> {
-        let data = match self {
+impl<'a> Translatable<'a, Cow<'a, Vector3<f32>>> for Pon {
+    fn inner_translate(&'a self) -> Result<Cow<Vector3<f32>>, PonTranslateErr> {
+        match self {
             &Pon::TypedPon(box TypedPon { ref type_name, ref data }) => {
                 match type_name.as_str() {
-                    "vec3" => data,
+                    "vec3" => {
+                        let x: f32 = try!(data.field_as_or("x", 0.0));
+                        let y: f32 = try!(data.field_as_or("y", 0.0));
+                        let z: f32 = try!(data.field_as_or("z", 0.0));
+                        Ok(Cow::Owned(Vector3::new(x, y, z)))
+                    },
                     _ => return Err(PonTranslateErr::UnrecognizedType(type_name.to_string()))
                 }
             },
-            &Pon::Object(..) => self,
+            &Pon::Object(..) => {
+                let x: f32 = try!(self.field_as_or("x", 0.0));
+                let y: f32 = try!(self.field_as_or("y", 0.0));
+                let z: f32 = try!(self.field_as_or("z", 0.0));
+                Ok(Cow::Owned(Vector3::new(x, y, z)))
+            },
+            &Pon::Vector3(ref vec3) => Ok(Cow::Borrowed(vec3)),
             _ => return Err(PonTranslateErr::MismatchType { expected: "TypedPon or Object".to_string(), found: format!("{:?}", self) })
-        };
-        let x: f32 = try!(data.field_as_or("x", 0.0));
-        let y: f32 = try!(data.field_as_or("y", 0.0));
-        let z: f32 = try!(data.field_as_or("z", 0.0));
-        Ok(Vector3::new(x, y, z))
+        }
+    }
+}
+
+impl<'a> Translatable<'a, Vector3<f32>> for Pon {
+    fn inner_translate(&'a self) -> Result<Vector3<f32>, PonTranslateErr> {
+        let s = self as &Translatable<'a, Cow<'a, Vector3<f32>>>;
+        Ok(*try!(s.inner_translate()))
     }
 }
 
@@ -40,6 +54,13 @@ fn test_vec3_to_pon() {
     assert_eq!(v.to_pon(), Pon::from_string("vec3 { x: 1.0, y: 2.0, z: 3.0 }").unwrap());
 }
 
+#[test]
+fn test_vec3_wrapped() {
+    let pon = Pon::Vector3(Vector3::new(1.0, 2.0, 3.0));
+    let vec3: Cow<Vector3<f32>> = pon.translate().unwrap();
+    assert_eq!(*vec3, Vector3::new(1.0, 2.0, 3.0));
+}
+
 impl<'a> Translatable<'a, Matrix4<f32>> for Pon {
     fn inner_translate(&'a self) -> Result<Matrix4<f32>, PonTranslateErr> {
         let &TypedPon { ref type_name, ref data } = try!(self.translate());
@@ -53,7 +74,7 @@ impl<'a> Translatable<'a, Matrix4<f32>> for Pon {
                     data[12], data[13], data[14], data[15]));
             },
             "translate" => {
-                let vec3: Vector3<f32> = try!(data.translate());
+                let vec3: Cow<Vector3<f32>> = try!(data.translate());
                 return Ok(Matrix4::from_translation(&vec3));
             },
             "rotate_x" => {
@@ -69,7 +90,7 @@ impl<'a> Translatable<'a, Matrix4<f32>> for Pon {
                 return Ok(Quaternion::from_angle_z(Rad { s: *v }).into());
             },
             "scale" => {
-                let v: Vector3<f32> = try!(data.translate());
+                let v: Cow<Vector3<f32>> = try!(data.translate());
                 let mat = Matrix4::new(
                          v.x,  zero(), zero(), zero(),
                          zero(), v.y,  zero(), zero(),
@@ -78,9 +99,9 @@ impl<'a> Translatable<'a, Matrix4<f32>> for Pon {
                 return Ok(mat);
             },
             "lookat" => {
-                let eye: Vector3<f32> = try!(data.field_as("eye"));
-                let center: Vector3<f32> = try!(data.field_as("center"));
-                let up: Vector3<f32> = try!(data.field_as_or("up", Vector3::new(0.0, 0.0, 1.0)));
+                let eye: Cow<Vector3<f32>> = try!(data.field_as("eye"));
+                let center: Cow<Vector3<f32>> = try!(data.field_as("center"));
+                let up: Cow<Vector3<f32>> = try!(data.field_as_or("up", Cow::Owned(Vector3::new(0.0, 0.0, 1.0))));
                 return Ok(Matrix4::look_at(&Point3::from_vec(&eye), &Point3::from_vec(&center), &up));
             },
             "projection" => {

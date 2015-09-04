@@ -9,6 +9,7 @@ use std::hash::Hasher;
 use std::hash::Hash;
 use std::cmp::Eq;
 use std::borrow::Cow;
+use cgmath;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct NamedPropRef {
@@ -40,6 +41,7 @@ pub enum Pon {
     Float(f32),
     Integer(i64),
     String(String),
+    Vector3(cgmath::Vector3<f32>),
     Nil
 }
 
