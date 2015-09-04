@@ -45,6 +45,17 @@ pub enum Pon {
     Nil
 }
 
+#[derive(PartialEq, Debug, Clone)]
+pub enum PonTranslateErr {
+    MismatchType { expected: String, found: String },
+    NoSuchField { field: String },
+    InvalidValue { value: String },
+    UnrecognizedType(String),
+    InnerError { in_pon: Pon, error: Box<PonTranslateErr> },
+    Generic(String)
+}
+
+
 impl Hash for Pon {
     fn hash<H>(&self, state: &mut H) where H: Hasher {
         let str = format!("{:?}", self);
@@ -189,17 +200,6 @@ fn test_translate_integer() {
     assert_eq!(*i, 5);
 }
 
-
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum PonTranslateErr {
-    MismatchType { expected: String, found: String },
-    NoSuchField { field: String },
-    InvalidValue { value: String },
-    UnrecognizedType(String),
-    InnerError { in_pon: Pon, error: Box<PonTranslateErr> },
-    Generic(String)
-}
 
 impl Pon {
     pub fn from_string(string: &str) -> Result<Pon, PonParseError> {
