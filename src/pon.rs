@@ -1,6 +1,6 @@
 peg_file! pon_peg("pon.rustpeg");
 
-pub use pon::pon_peg::ParseError as ParseError;
+pub use pon::pon_peg::ParseError as PonParseError;
 
 use document::EntityId;
 
@@ -10,6 +10,7 @@ use std::hash::Hash;
 use std::cmp::Eq;
 use std::borrow::Cow;
 
+#[macro_export]
 macro_rules! from_pon {
     ($self_:expr, $node:expr, $context:expr) => (match ($node).translate($context) {
         ::std::result::Result::Ok(val) => val,
@@ -124,8 +125,8 @@ impl<'a, 'b, C> Translatable<'a, 'b, i64, C> for Pon {
         }
     }
 }
-impl<'a, 'b, C> Translatable<'a, 'b, &'a String, C> for Pon {
-    fn translate(&'a self, _: &'b C) -> Result<&'a String, PonTranslateErr> {
+impl<'a, 'b, C> Translatable<'a, 'b, &'a str, C> for Pon {
+    fn translate(&'a self, _: &'b C) -> Result<&'a str, PonTranslateErr> {
         match self {
             &Pon::String(ref value) => Ok(&value),
             _ => Err(PonTranslateErr::MismatchType { expected: "String".to_string(), found: format!("{:?}", self) })
@@ -266,13 +267,14 @@ fn test_translate_get_field() {
 pub enum PonTranslateErr {
     MismatchType { expected: String, found: String },
     NoSuchField { field: String },
+    InvalidValue { value: String },
     UnrecognizedType(String),
     InnerError { pon: Pon, failing_inner_pon: Pon, error: Box<PonTranslateErr> },
     Generic(String)
 }
 
 impl Pon {
-    pub fn from_string(string: &str) -> Result<Pon, ParseError> {
+    pub fn from_string(string: &str) -> Result<Pon, PonParseError> {
         pon_peg::body(string)
     }
     pub fn get_dependency_references(&self, references: &mut Vec<NamedPropRef>) {
@@ -319,7 +321,7 @@ impl Pon {
     pub fn as_integer(&self) -> Result<&i64, PonTranslateErr> {
         self.translate(&())
     }
-    pub fn as_string(&self) -> Result<&String, PonTranslateErr> {
+    pub fn as_string(&self) -> Result<&str, PonTranslateErr> {
         self.translate(&())
     }
     pub fn as_reference(&self) -> Result<&NamedPropRef, PonTranslateErr> {
