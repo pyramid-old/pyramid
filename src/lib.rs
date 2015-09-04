@@ -8,6 +8,7 @@ extern crate time;
 pub mod hashmap_macro;
 pub mod document;
 mod pon_test;
+#[macro_use]
 pub mod pon;
 pub mod system;
 pub mod interface;
