@@ -138,7 +138,7 @@ impl<'a> Translatable<'a, Cow<'a, Vec<f32>>> for Pon {
             &Pon::Array(ref arr) => {
                 let mut res_arr = vec![];
                 for v in arr {
-                    res_arr.push(*try!(v.as_float()));
+                    res_arr.push(try!(v.translate::<f32>()));
                 }
                 return Ok(Cow::Owned(res_arr));
             },
@@ -153,7 +153,7 @@ impl<'a> Translatable<'a, Cow<'a, Vec<i64>>> for Pon {
             &Pon::Array(ref arr) => {
                 let mut res_arr = vec![];
                 for v in arr {
-                    res_arr.push(*try!(v.as_integer()));
+                    res_arr.push(try!(v.translate::<i64>()));
                 }
                 return Ok(Cow::Owned(res_arr));
             },
@@ -190,7 +190,6 @@ impl<'a, T> Translatable<'a, Vec<T>> for Pon where Pon: Translatable<'a, T> {
         Ok(out)
     }
 }
-
 
 
 #[test]
@@ -257,36 +256,5 @@ impl Pon {
             &Pon::Reference(ref value) => Ok(&value),
             _ => Err(PonTranslateErr::MismatchType { expected: "Reference".to_string(), found: format!("{:?}", self) })
         }
-    }
-
-
-    // deprecated
-
-    pub fn as_transform(&self) -> Result<&TypedPon, PonTranslateErr> {
-        self.translate()
-    }
-    pub fn as_float(&self) -> Result<&f32, PonTranslateErr> {
-        self.translate()
-    }
-    pub fn as_integer(&self) -> Result<&i64, PonTranslateErr> {
-        self.translate()
-    }
-    pub fn as_string(&self) -> Result<&str, PonTranslateErr> {
-        self.translate()
-    }
-    pub fn as_object(&self) -> Result<&HashMap<String, Pon>, PonTranslateErr> {
-        self.translate()
-    }
-    pub fn get_object_field(&self, field: &str) -> Result<&Pon, PonTranslateErr> {
-        self.field(field)
-    }
-    pub fn as_array(&self) -> Result<&Vec<Pon>, PonTranslateErr> {
-        self.translate()
-    }
-    pub fn as_float_array(&self) -> Result<Cow<Vec<f32>>, PonTranslateErr> {
-        self.translate()
-    }
-    pub fn as_integer_array(&self) -> Result<Cow<Vec<i64>>, PonTranslateErr> {
-        self.translate()
     }
 }
