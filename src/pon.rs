@@ -170,16 +170,6 @@ impl<'a> Translatable<'a, &'a Vec<Pon>> for Pon {
         }
     }
 }
-impl<'a, T> Translatable<'a, Vec<T>> for Pon where Pon: Translatable<'a, T> {
-    fn inner_translate(&'a self) -> Result<Vec<T>, PonTranslateErr> {
-        let source: &Vec<Pon> = try!(self.translate::<&Vec<Pon>>());
-        let mut out = vec![];
-        for v in source {
-            out.push(try!(v.translate()));
-        }
-        Ok(out)
-    }
-}
 impl<'a> Translatable<'a, &'a HashMap<String, Pon>> for Pon {
     fn inner_translate(&'a self) -> Result<&'a HashMap<String, Pon>, PonTranslateErr> {
         match self {
@@ -190,6 +180,16 @@ impl<'a> Translatable<'a, &'a HashMap<String, Pon>> for Pon {
 }
 
 
+impl<'a, T> Translatable<'a, Vec<T>> for Pon where Pon: Translatable<'a, T> {
+    fn inner_translate(&'a self) -> Result<Vec<T>, PonTranslateErr> {
+        let source: &Vec<Pon> = try!(self.translate::<&Vec<Pon>>());
+        let mut out = vec![];
+        for v in source {
+            out.push(From::from(try!(v.translate())));
+        }
+        Ok(out)
+    }
+}
 
 
 
