@@ -7,3 +7,4 @@ authors = ["Fredrik Noren <fredrik.jw.noren@gmail.com>"]
 peg = "0.3.0"
 xml-rs = "0.1.25"
 time = "*"
+cgmath = "0.2.0"
