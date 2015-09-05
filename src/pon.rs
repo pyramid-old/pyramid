@@ -13,21 +13,39 @@ use std::borrow::Cow;
 use cgmath;
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash, PartialOrd, Ord)]
+pub enum EntityPath {
+    This,
+    Parent,
+    Named(String),
+    Search(Box<EntityPath>, String)
+}
+impl ToString for EntityPath {
+    fn to_string(&self) -> String {
+        match self {
+            &EntityPath::This => "this".to_string(),
+            &EntityPath::Parent => "parent".to_string(),
+            &EntityPath::Named(ref name) => name.to_string(),
+            &EntityPath::Search(ref path, ref search) => format!("{}:{}", path.to_string(), search),
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Hash, PartialOrd, Ord)]
 pub struct NamedPropRef {
-    pub entity_name: String,
+    pub entity_path: EntityPath,
     pub property_key: String
 }
 impl NamedPropRef {
-    pub fn new(entity_name: &str, property_key: &str) -> NamedPropRef {
+    pub fn new(entity_path: EntityPath, property_key: &str) -> NamedPropRef {
         NamedPropRef {
-            entity_name: entity_name.to_string(),
+            entity_path: entity_path,
             property_key: property_key.to_string()
         }
     }
 }
 impl ToString for NamedPropRef {
     fn to_string(&self) -> String {
-        format!("{}.{}", self.entity_name, self.property_key)
+        format!("{}.{}", self.entity_path.to_string(), self.property_key)
     }
 }
 

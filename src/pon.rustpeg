@@ -17,19 +17,32 @@ transform -> Pon
   }
 
 dependency_reference -> Pon
-  = "@" entity_name:identifier sep* "." sep* property_name:identifier {
+  = "@" entity_path:entity_path sep* "." sep* property_name:identifier {
     Pon::DependencyReference(NamedPropRef {
-      entity_name: entity_name.to_string(),
+      entity_path: entity_path,
       property_key: property_name.to_string(),
     })
   }
 
 reference -> Pon
-  = entity_name:identifier sep* "." sep* property_name:identifier {
+  = "" entity_path:entity_path sep* "." sep* property_name:identifier {
     Pon::Reference(NamedPropRef {
-      entity_name: entity_name.to_string(),
+      entity_path: entity_path,
       property_key: property_name.to_string(),
     })
+  }
+
+entity_path_root -> EntityPath
+  = "this" sep* { EntityPath::This }
+  / "parent" sep* { EntityPath::Parent }
+  / name:identifier sep* { EntityPath::Named(name) }
+
+entity_path -> EntityPath
+  = path:entity_path_root sep* search:(":" sep* name:identifier { name })? {
+    match search {
+      Some(name) => EntityPath::Search(Box::new(path), name),
+      None => path
+    }
   }
 
 array -> Pon

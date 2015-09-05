@@ -106,13 +106,19 @@ fn test_transform_number() {
 #[test]
 fn test_dependency_reference() {
     let v = Pon::from_string("@some.test");
-    assert_eq!(v, Ok(Pon::DependencyReference(NamedPropRef { entity_name: "some".to_string(), property_key: "test".to_string() })));
+    assert_eq!(v, Ok(Pon::DependencyReference(NamedPropRef::new(EntityPath::Named("some".to_string()), "test"))));
 }
 
 #[test]
 fn test_reference() {
     let v = Pon::from_string("some.test");
-    assert_eq!(v, Ok(Pon::Reference(NamedPropRef { entity_name: "some".to_string(), property_key: "test".to_string() })));
+    assert_eq!(v, Ok(Pon::Reference(NamedPropRef::new(EntityPath::Named("some".to_string()), "test"))));
+}
+
+#[test]
+fn test_path() {
+    let v = Pon::from_string("some:else.test");
+    assert_eq!(v, Ok(Pon::Reference(NamedPropRef::new(EntityPath::Search(Box::new(EntityPath::Named("some".to_string())), "else".to_string()), "test"))));
 }
 
 #[test]

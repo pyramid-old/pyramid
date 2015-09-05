@@ -171,19 +171,47 @@ impl Document {
             None => Err(DocError::NoSuchEntity)
         }
     }
-    pub fn resolve_named_prop_ref(&self, entity_id: &EntityId, named_prop_ref: &NamedPropRef) -> Result<PropRef, DocError> {
-        let owner_entity_id = match named_prop_ref.entity_name.as_str() {
-            "this" => Some(entity_id),
-            "parent" => match self.entities.get(entity_id) {
-                Some(entity) => Some(&entity.parent_id),
-                None => None
+    pub fn search_children(&self, entity_id: &EntityId, name: &str) -> Result<EntityId, DocError> {
+        match self.entities.get(entity_id) {
+            Some(entity) => {
+                if let &Some(ref string) = &entity.name {
+                    if string == name {
+                        return Ok(entity.id);
+                    }
+                }
+                for c in &entity.children_ids {
+                    match self.search_children(&c, name) {
+                        Ok(id) => return Ok(id),
+                        _ => {}
+                    }
+                }
+                Err(DocError::BadReference)
             },
-            _ => self.entity_ids_by_name.get(&named_prop_ref.entity_name)
-        };
-        match owner_entity_id {
-            Some(owner_entity_id) => Ok(PropRef { entity_id: owner_entity_id.clone(), property_key: named_prop_ref.property_key.clone() }),
             None => Err(DocError::BadReference)
         }
+    }
+    pub fn resolve_entity_path(&self, start_entity_id: &EntityId, path: &EntityPath) -> Result<EntityId, DocError> {
+        match path {
+            &EntityPath::This => Ok(*start_entity_id),
+            &EntityPath::Parent => match self.entities.get(start_entity_id) {
+                Some(entity) => Ok(entity.parent_id.clone()),
+                None => Err(DocError::BadReference)
+            },
+            &EntityPath::Named(ref name) => match self.entity_ids_by_name.get(name) {
+                Some(entity_id) => Ok(entity_id.clone()),
+                None => Err(DocError::BadReference)
+            },
+            &EntityPath::Search(ref path, ref search) => {
+                match self.resolve_entity_path(start_entity_id, path) {
+                    Ok(ent) => self.search_children(&ent, search),
+                    Err(err) => Err(err)
+                }
+            }
+        }
+    }
+    pub fn resolve_named_prop_ref(&self, start_entity_id: &EntityId, named_prop_ref: &NamedPropRef) -> Result<PropRef, DocError> {
+        let owner_entity_id = try!(self.resolve_entity_path(start_entity_id, &named_prop_ref.entity_path));
+        Ok(PropRef { entity_id: owner_entity_id, property_key: named_prop_ref.property_key.clone() })
     }
     pub fn get_entity_type_name(&self, entity_id: &EntityId) -> Result<&String, DocError> {
         match self.entities.get(&entity_id) {
