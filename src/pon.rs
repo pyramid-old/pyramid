@@ -11,16 +11,32 @@ use std::cmp::Eq;
 use std::borrow::Cow;
 use cgmath;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Hash, PartialOrd, Ord)]
 pub struct NamedPropRef {
     pub entity_name: String,
     pub property_key: String
+}
+impl NamedPropRef {
+    pub fn new(entity_name: &str, property_key: &str) -> NamedPropRef {
+        NamedPropRef {
+            entity_name: entity_name.to_string(),
+            property_key: property_key.to_string()
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct PropRef {
     pub entity_id: EntityId,
     pub property_key: String
+}
+impl PropRef {
+    pub fn new(entity_id: &EntityId, property_key: &str) -> PropRef {
+        PropRef {
+            entity_id: *entity_id,
+            property_key: property_key.to_string()
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone)]
