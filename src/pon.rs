@@ -5,6 +5,7 @@ pub use pon::pon_peg::ParseError as PonParseError;
 use document::EntityId;
 
 use std::collections::HashMap;
+use std::slice::SliceConcatExt;
 use std::hash::Hasher;
 use std::hash::Hash;
 use std::cmp::Eq;
@@ -22,6 +23,11 @@ impl NamedPropRef {
             entity_name: entity_name.to_string(),
             property_key: property_key.to_string()
         }
+    }
+}
+impl ToString for NamedPropRef {
+    fn to_string(&self) -> String {
+        format!("{}.{}", self.entity_name, self.property_key)
     }
 }
 
@@ -61,6 +67,35 @@ pub enum Pon {
     Nil
 }
 
+impl ToString for Pon {
+    fn to_string(&self) -> String {
+        match self {
+            &Pon::TypedPon(box TypedPon { ref type_name, ref data }) => format!("{} {}", type_name, data.to_string()),
+            &Pon::DependencyReference(ref named_prop_ref) => format!("@{}", named_prop_ref.to_string()),
+            &Pon::Reference(ref named_prop_ref) => format!("{}", named_prop_ref.to_string()),
+            &Pon::Array(ref array) => {
+                let a: Vec<String> = array.iter().map(|x| x.to_string()).collect();
+                let mut s = a.join(", ");
+                if s.len() > 120 { s = a.join(",\n"); }
+                format!("[{}]", s)
+            },
+            &Pon::FloatArray(ref array) => array.to_pon().to_string(),
+            &Pon::IntegerArray(ref array) => array.to_pon().to_string(),
+            &Pon::Object(ref hm) => {
+                let a: Vec<String> = hm.iter().map(|(k, v)| format!("{}: {}", k.to_string(), v.to_string())).collect();
+                let mut s = a.join(", ");
+                if s.len() > 120 { s = a.join(",\n"); }
+                format!("{{ {} }}", s)
+            },
+            &Pon::Float(ref v) => v.to_string(),
+            &Pon::Integer(ref v) => v.to_string(),
+            &Pon::String(ref v) => format!("'{}'", v),
+            &Pon::Vector3(ref v) => v.to_pon().to_string(),
+            &Pon::Nil => "()".to_string()
+        }
+    }
+}
+
 #[derive(PartialEq, Debug, Clone)]
 pub enum PonTranslateErr {
     MismatchType { expected: String, found: String },
@@ -93,7 +128,16 @@ impl ToPon for Pon {
         self.clone()
     }
 }
-
+impl ToPon for Vec<f32> {
+    fn to_pon(&self) -> Pon {
+        Pon::Array(self.iter().map(|v| Pon::Float(*v)).collect())
+    }
+}
+impl ToPon for Vec<i64> {
+    fn to_pon(&self) -> Pon {
+        Pon::Array(self.iter().map(|v| Pon::Integer(*v)).collect())
+    }
+}
 
 pub trait Translatable<'a, T> {
     fn inner_translate(&'a self) -> Result<T, PonTranslateErr>;

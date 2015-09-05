@@ -1,4 +1,4 @@
-#![feature(plugin, box_patterns, convert, vec_push_all, path_ext)]
+#![feature(plugin, box_patterns, convert, vec_push_all, path_ext, slice_concat_ext)]
 #![plugin(peg_syntax_ext)]
 
 extern crate xml;

@@ -317,7 +317,7 @@ impl Document {
         let attrs: Vec<xml::attribute::OwnedAttribute> = entity.properties.iter().map(|(name, prop)| {
             xml::attribute::OwnedAttribute {
                 name: xml::name::OwnedName::local(name.to_string()),
-                value: format!("{:?}", prop.expression)
+                value: prop.expression.to_string()
             }
         }).collect();
         writer.write(xml::writer::events::XmlEvent::StartElement {
