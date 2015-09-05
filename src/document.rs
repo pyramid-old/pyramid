@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Keys;
 use std::path::Path;
 use std::fs::PathExt;
+use std::io::Write;
 
 use xml::reader::EventReader;
 use xml::reader::events::*;
@@ -309,6 +310,41 @@ impl Document {
             }
         }
     }
+
+    fn entity_to_xml<T: Write>(&self, entity_id: &EntityId, writer: &mut xml::writer::EventWriter<T>) {
+        let entity = self.entities.get(entity_id).unwrap();
+        let type_name = xml::name::Name::local(&entity.type_name);
+        let attrs: Vec<xml::attribute::OwnedAttribute> = entity.properties.iter().map(|(name, prop)| {
+            xml::attribute::OwnedAttribute {
+                name: xml::name::OwnedName::local(name.to_string()),
+                value: format!("{:?}", prop.expression)
+            }
+        }).collect();
+        writer.write(xml::writer::events::XmlEvent::StartElement {
+            name: type_name.clone(),
+            attributes: attrs.iter().map(|x| x.borrow()).collect(),
+            namespace: &xml::namespace::Namespace::empty()
+        });
+        for e in &entity.children_ids {
+            self.entity_to_xml(e, writer);
+        }
+        writer.write(xml::writer::events::XmlEvent::EndElement {
+            name: type_name.clone()
+        });
+    }
+    fn to_xml(&self) -> String {
+        let mut buff = vec![];
+        {
+            let mut writer = xml::writer::EventWriter::new(&mut buff);
+            writer.write(xml::writer::events::XmlEvent::StartDocument {
+                version: xml::common::XmlVersion::Version11,
+                encoding: None,
+                standalone: None
+            });
+            self.entity_to_xml(&self.root, &mut writer);
+        }
+        String::from_utf8(buff).unwrap()
+    }
 }
 
 fn event_reader_from_file(path: &Path) -> EventReader<BufReader<File>> {
@@ -316,6 +352,12 @@ fn event_reader_from_file(path: &Path) -> EventReader<BufReader<File>> {
     let file = BufReader::new(file);
 
     EventReader::new(file)
+}
+
+impl ToString for Document {
+    fn to_string(&self) -> String {
+        self.to_xml()
+    }
 }
 
 #[test]

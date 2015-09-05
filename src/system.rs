@@ -10,7 +10,7 @@ use pon::*;
 use interface::*;
 
 pub struct System {
-    document: Document,
+    pub document: Document,
     prev_frame_time: time::Timespec,
     sub_systems: Vec<Rc<RefCell<Box<ISubSystem>>>>,
     invalidated_properties: Vec<PropRef>,
