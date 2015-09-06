@@ -136,7 +136,7 @@ impl ToString for PonTranslateErr {
             &PonTranslateErr::UnrecognizedType(ref value) => format!("Unregcognized type: {}", value),
             &PonTranslateErr::InnerError { ref in_pon, ref error } => {
                 let p = in_pon.to_string();
-                format!("{} in {}...", error.to_string(), &p[0..50])
+                format!("{} in {}...", error.to_string(), &p[0..cmp::min(50, p.len())])
             },
             &PonTranslateErr::Generic(ref value) => format!("Generic error: {}", value),
         }
