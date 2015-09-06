@@ -11,6 +11,7 @@ use std::hash::Hash;
 use std::cmp::Eq;
 use std::borrow::Cow;
 use cgmath;
+use std::cmp;
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash, PartialOrd, Ord)]
 pub enum EntityPath {
@@ -82,6 +83,7 @@ pub enum Pon {
     Integer(i64),
     String(String),
     Vector3(cgmath::Vector3<f32>),
+    Vector4(cgmath::Vector4<f32>),
     Nil
 }
 
@@ -105,10 +107,11 @@ impl ToString for Pon {
                 if s.len() > 120 { s = a.join(",\n"); }
                 format!("{{ {} }}", s)
             },
-            &Pon::Float(ref v) => v.to_string(),
+            &Pon::Float(ref v) => format!("{:.10}", v),
             &Pon::Integer(ref v) => v.to_string(),
             &Pon::String(ref v) => format!("'{}'", v),
             &Pon::Vector3(ref v) => v.to_pon().to_string(),
+            &Pon::Vector4(ref v) => v.to_pon().to_string(),
             &Pon::Nil => "()".to_string()
         }
     }
@@ -124,6 +127,21 @@ pub enum PonTranslateErr {
     Generic(String)
 }
 
+impl ToString for PonTranslateErr {
+    fn to_string(&self) -> String {
+        match self {
+            &PonTranslateErr::MismatchType { ref expected, ref found  } => format!("Expected {}, found {}", expected, found),
+            &PonTranslateErr::NoSuchField { ref field  } => format!("No such field: {}", field),
+            &PonTranslateErr::InvalidValue { ref value  } => format!("Invalid value: {}", value),
+            &PonTranslateErr::UnrecognizedType(ref value) => format!("Unregcognized type: {}", value),
+            &PonTranslateErr::InnerError { ref in_pon, ref error } => {
+                let p = in_pon.to_string();
+                format!("{} in {}...", error.to_string(), &p[0..50])
+            },
+            &PonTranslateErr::Generic(ref value) => format!("Generic error: {}", value),
+        }
+    }
+}
 
 impl Hash for Pon {
     fn hash<H>(&self, state: &mut H) where H: Hasher {

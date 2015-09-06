@@ -61,6 +61,71 @@ fn test_vec3_wrapped() {
     assert_eq!(*vec3, Vector3::new(1.0, 2.0, 3.0));
 }
 
+
+impl<'a> Translatable<'a, Cow<'a, Vector4<f32>>> for Pon {
+    fn inner_translate(&'a self) -> Result<Cow<Vector4<f32>>, PonTranslateErr> {
+        match self {
+            &Pon::TypedPon(box TypedPon { ref type_name, ref data }) => {
+                match type_name.as_str() {
+                    "vec4" => {
+                        let x: f32 = try!(data.field_as_or("x", 0.0));
+                        let y: f32 = try!(data.field_as_or("y", 0.0));
+                        let z: f32 = try!(data.field_as_or("z", 0.0));
+                        let w: f32 = try!(data.field_as_or("w", 0.0));
+                        Ok(Cow::Owned(Vector4::new(x, y, z, w)))
+                    },
+                    _ => return Err(PonTranslateErr::UnrecognizedType(type_name.to_string()))
+                }
+            },
+            &Pon::Object(..) => {
+                let x: f32 = try!(self.field_as_or("x", 0.0));
+                let y: f32 = try!(self.field_as_or("y", 0.0));
+                let z: f32 = try!(self.field_as_or("z", 0.0));
+                let w: f32 = try!(self.field_as_or("w", 0.0));
+                Ok(Cow::Owned(Vector4::new(x, y, z, w)))
+            },
+            &Pon::Vector4(ref vec4) => Ok(Cow::Borrowed(vec4)),
+            _ => return Err(PonTranslateErr::MismatchType { expected: "TypedPon or Object".to_string(), found: format!("{:?}", self) })
+        }
+    }
+}
+
+impl<'a> Translatable<'a, Vector4<f32>> for Pon {
+    fn inner_translate(&'a self) -> Result<Vector4<f32>, PonTranslateErr> {
+        let s = self as &Translatable<'a, Cow<'a, Vector4<f32>>>;
+        Ok(*try!(s.inner_translate()))
+    }
+}
+
+impl ToPon for Vector4<f32> {
+    fn to_pon(&self) -> Pon {
+        Pon::TypedPon(Box::new(TypedPon {
+            type_name: "vec4".to_string(),
+            data: Pon::Object(hashmap!(
+                "x" => Pon::Float(self.x),
+                "y" => Pon::Float(self.y),
+                "z" => Pon::Float(self.z),
+                "w" => Pon::Float(self.w)
+            ))
+        }))
+    }
+}
+
+#[test]
+fn test_vec4_to_pon() {
+    let v = Vector4::new(1.0, 2.0, 3.0, 4.0);
+    assert_eq!(v.to_pon(), Pon::from_string("vec4 { x: 1.0, y: 2.0, z: 3.0, w: 4.0 }").unwrap());
+}
+
+#[test]
+fn test_vec4_wrapped() {
+    let pon = Pon::Vector4(Vector4::new(1.0, 2.0, 3.0, 4.0));
+    let vec4: Cow<Vector4<f32>> = pon.translate().unwrap();
+    assert_eq!(*vec4, Vector4::new(1.0, 2.0, 3.0, 4.0));
+}
+
+
+
 impl<'a> Translatable<'a, Matrix4<f32>> for Pon {
     fn inner_translate(&'a self) -> Result<Matrix4<f32>, PonTranslateErr> {
         let &TypedPon { ref type_name, ref data } = try!(self.translate());
