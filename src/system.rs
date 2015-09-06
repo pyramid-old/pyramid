@@ -81,8 +81,8 @@ impl ISystem for System {
     fn get_entity_by_name(&self, name: &str) -> Option<EntityId> {
         self.document.get_entity_by_name(name)
     }
-    fn set_property(&mut self, entity_id: &EntityId, name: String, value: Pon) -> Result<(), DocError> {
-        match self.document.set_property(entity_id, &name.as_str(), value) {
+    fn set_property(&mut self, entity_id: &EntityId, name: &str, value: Pon) -> Result<(), DocError> {
+        match self.document.set_property(entity_id, name, value) {
             Ok(invalid_props) => {
                 self.invalidated_properties.push_all(&invalid_props);
                 Ok(())
