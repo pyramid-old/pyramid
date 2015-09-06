@@ -154,6 +154,10 @@ impl<'a> Translatable<'a, Matrix4<f32>> for Pon {
                 let v: &f32 = try!(data.translate());
                 return Ok(Quaternion::from_angle_z(Rad { s: *v }).into());
             },
+            "rotate_quaternion" => {
+                let v: Cow<'a, Vector4<f32>> = try!(data.translate());
+                return Ok(Quaternion::new(v.w, v.x, v.y, v.z).into());
+            },
             "scale" => {
                 let v: Cow<Vector3<f32>> = try!(data.translate());
                 let mat = Matrix4::new(
