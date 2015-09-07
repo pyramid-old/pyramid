@@ -111,8 +111,8 @@ impl Document {
         &self.root
     }
     // returns all props that were invalidated
-    pub fn set_property(&mut self, entity_id: &EntityId, name: &str, expression: Pon) -> Result<Vec<PropRef>, DocError> {
-        //println!("set property {} {:?}", name, expression);
+    pub fn set_property(&mut self, entity_id: &EntityId, property_key: &str, expression: Pon) -> Result<Vec<PropRef>, DocError> {
+        //println!("set property {} {:?}", property_key, expression);
         let mut dependencies: Vec<PropRef> = {
             let entity = match self.entities.get(entity_id) {
                 Some(entity) => entity,
@@ -125,7 +125,7 @@ impl Document {
                 Some(dep_ent) => {
                     match dep_ent.properties.get_mut(&dep_prop_key) {
                         Some(property) => {
-                            property.dependants.push(PropRef { entity_id: entity_id.clone(), property_key: name.to_string() });
+                            property.dependants.push(PropRef { entity_id: entity_id.clone(), property_key: property_key.to_string() });
                         },
                         None => return Err(DocError::BadReference)
                     }
@@ -135,11 +135,11 @@ impl Document {
         }
         {
             let mut ent_mut = self.entities.get_mut(entity_id).unwrap();
-            if ent_mut.properties.contains_key(&name.to_string()) {
-                let mut prop = ent_mut.properties.get_mut(&name.to_string()).unwrap();
+            if ent_mut.properties.contains_key(property_key) {
+                let mut prop = ent_mut.properties.get_mut(property_key).unwrap();
                 prop.expression = expression;
             } else {
-                ent_mut.properties.insert(name.to_string(), Property {
+                ent_mut.properties.insert(property_key.to_string(), Property {
                     expression: expression,
                     dependants: vec![],
                     cached_resolved_value: RefCell::new(None)
@@ -147,8 +147,8 @@ impl Document {
             }
         }
         let entity = self.entities.get(entity_id).unwrap();
-        let mut cascades = vec![PropRef { entity_id: entity_id.clone(), property_key: name.to_string() }];
-        try!(self.build_property_cascades(entity, name.to_string(), &mut cascades));
+        let mut cascades = vec![PropRef { entity_id: entity_id.clone(), property_key: property_key.to_string() }];
+        try!(self.build_property_cascades(entity, &property_key, &mut cascades));
         for pr in &cascades {
             let ent = self.entities.get(&pr.entity_id).unwrap();
             let prop = ent.properties.get(&pr.property_key).unwrap();
@@ -264,16 +264,16 @@ impl Document {
     }
 
     // get a list of properties that are invalid if property (entity, key) changes
-    fn build_property_cascades(&self, entity: &Entity, key: String, cascades: &mut Vec<PropRef>) -> Result<(), DocError> {
-        match entity.properties.get(&key) {
+    fn build_property_cascades(&self, entity: &Entity, property_key: &str, cascades: &mut Vec<PropRef>) -> Result<(), DocError> {
+        match entity.properties.get(property_key) {
             Some(property) => {
                 for pr in &property.dependants {
                     cascades.push(pr.clone());
-                    try!(self.build_property_cascades(self.entities.get(&pr.entity_id).unwrap(), pr.property_key.clone(), cascades));
+                    try!(self.build_property_cascades(self.entities.get(&pr.entity_id).unwrap(), &pr.property_key, cascades));
                 }
                 return Ok(());
             },
-            None => Err(DocError::NoSuchProperty(key.to_string()))
+            None => Err(DocError::NoSuchProperty(property_key.to_string()))
         }
     }
 
