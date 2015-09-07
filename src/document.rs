@@ -371,12 +371,19 @@ impl Document {
     fn entity_to_xml<T: Write>(&self, entity_id: &EntityId, writer: &mut xml::writer::EventWriter<T>) {
         let entity = self.entities.get(entity_id).unwrap();
         let type_name = xml::name::Name::local(&entity.type_name);
-        let attrs: Vec<xml::attribute::OwnedAttribute> = entity.properties.iter().map(|(name, prop)| {
+        let mut attrs: Vec<xml::attribute::OwnedAttribute> = entity.properties.iter().map(|(name, prop)| {
             xml::attribute::OwnedAttribute {
                 name: xml::name::OwnedName::local(name.to_string()),
                 value: prop.expression.to_string()
             }
         }).collect();
+        if let &Some(ref name) = &entity.name {
+            attrs.push(xml::attribute::OwnedAttribute {
+                name: xml::name::OwnedName::local("name"),
+                value: name.to_string()
+            });
+        }
+        attrs.sort_by(|a, b| a.name.local_name.cmp(&b.name.local_name) );
         writer.write(xml::writer::events::XmlEvent::StartElement {
             name: type_name.clone(),
             attributes: attrs.iter().map(|x| x.borrow()).collect(),
@@ -416,6 +423,7 @@ impl ToString for Document {
         self.to_xml()
     }
 }
+
 
 #[test]
 fn test_property_get() {
