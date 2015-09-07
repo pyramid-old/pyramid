@@ -12,6 +12,8 @@ use std::cmp::Eq;
 use std::borrow::Cow;
 use cgmath;
 use std::cmp;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash, PartialOrd, Ord)]
 pub enum EntityPath {
@@ -75,6 +77,7 @@ pub enum Pon {
     TypedPon(Box<TypedPon>),
     DependencyReference(NamedPropRef),
     Reference(NamedPropRef),
+    ResolvedDependencyReference(Rc<RefCell<Pon>>),
     Array(Vec<Pon>),
     FloatArray(Vec<f32>),
     IntegerArray(Vec<i64>),
@@ -93,6 +96,7 @@ impl ToString for Pon {
             &Pon::TypedPon(box TypedPon { ref type_name, ref data }) => format!("{} {}", type_name, data.to_string()),
             &Pon::DependencyReference(ref named_prop_ref) => format!("@{}", named_prop_ref.to_string()),
             &Pon::Reference(ref named_prop_ref) => format!("{}", named_prop_ref.to_string()),
+            &Pon::ResolvedDependencyReference(ref pon) => format!("@{}", pon.borrow().to_string()),
             &Pon::Array(ref array) => {
                 let a: Vec<String> = array.iter().map(|x| x.to_string()).collect();
                 let mut s = a.join(", ");
@@ -175,7 +179,7 @@ impl ToPon for Vec<i64> {
     }
 }
 
-pub trait Translatable<'a, T> {
+pub trait Translatable<'a, T: 'static> {
     fn inner_translate(&'a self) -> Result<T, PonTranslateErr>;
 }
 
@@ -320,8 +324,12 @@ impl Pon {
             _ => {}
         }
     }
-    pub fn translate<'a, T>(&'a self) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, T> {
-        match self.inner_translate() {
+    pub fn translate<'a, T: 'static>(&'a self) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, T> {
+        let res = match self {
+            &Pon::ResolvedDependencyReference(ref res) => res.borrow().translate(),
+            _ => self.inner_translate()
+        };
+        match res {
             Ok(val) => Ok(val),
             Err(err) => Err(PonTranslateErr::InnerError { in_pon: self.clone(), error: Box::new(err) })
         }

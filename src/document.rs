@@ -8,9 +8,12 @@ use std::fs::File;
 use std::io::BufReader;
 use std::collections::HashMap;
 use std::collections::hash_map::Keys;
+use std::collections::hash_map::Entry;
 use std::path::Path;
 use std::fs::PathExt;
 use std::io::Write;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use xml::reader::EventReader;
 use xml::reader::events::*;
@@ -38,7 +41,7 @@ pub type PropertyIter<'a> = Keys<'a, String, Property>;
 
 #[derive(Debug)]
 struct Property {
-    expression: Pon,
+    expression: Rc<RefCell<Pon>>,
     dependants: Vec<PropRef>
 }
 
@@ -50,6 +53,18 @@ struct Entity {
     name: Option<String>,
     children_ids: Vec<EntityId>,
     parent_id: EntityId
+}
+
+impl Entity {
+    fn get_or_create_property(&mut self, key: &str) -> &Property {
+        match self.properties.entry(key.to_string()) {
+            Entry::Occupied(o) => o.into_mut(),
+            Entry::Vacant(v) => v.insert(Property {
+                expression: Rc::new(RefCell::new(Pon::Nil)),
+                dependants: vec![]
+            })
+        }
+    }
 }
 
 pub struct Document {
@@ -130,14 +145,17 @@ impl Document {
                 None => return Err(DocError::BadReference)
             }
         }
+        let resolved_expression = {
+            Rc::new(RefCell::new(self.resolve_pon_dependencies(entity_id, &expression).unwrap()))
+        };
         {
             let mut ent_mut = self.entities.get_mut(entity_id).unwrap();
             if ent_mut.properties.contains_key(&name.to_string()) {
                 let mut prop = ent_mut.properties.get_mut(&name.to_string()).unwrap();
-                prop.expression = expression;
+                prop.expression = resolved_expression;
             } else {
                 ent_mut.properties.insert(name.to_string(), Property {
-                    expression: expression,
+                    expression: resolved_expression,
                     dependants: vec![]
                 });
             }
@@ -258,25 +276,25 @@ impl Document {
         }
     }
 
-    fn resolve_property_node_value(&self, entity: &Entity, node: &Pon) -> Result<Pon, DocError> {
+    fn resolve_pon_dependencies(&mut self, entity_id: &EntityId, node: &Pon) -> Result<Pon, DocError> {
         match node {
             &Pon::TypedPon(box TypedPon { ref type_name, ref data }) =>
                 Ok(Pon::TypedPon(Box::new(TypedPon {
                     type_name: type_name.clone(),
-                    data: try!(self.resolve_property_node_value(entity, data))
+                    data: try!(self.resolve_pon_dependencies(entity_id, data))
                 }))),
             &Pon::DependencyReference(ref named_prop_ref) => {
-                let prop_ref = try!(self.resolve_named_prop_ref(&entity.id, &named_prop_ref));
-                match self.entities.get(&prop_ref.entity_id) {
-                    Some(entity) => self.get_entity_property_value(entity, prop_ref.property_key.clone()),
+                let prop_ref = try!(self.resolve_named_prop_ref(&entity_id, &named_prop_ref));
+                match self.entities.get_mut(&prop_ref.entity_id) {
+                    Some(entity) => Ok(Pon::ResolvedDependencyReference(entity.get_or_create_property(&prop_ref.property_key).expression.clone())),
                     None => Err(DocError::BadReference)
                 }
             },
             &Pon::Object(ref hm) => Ok(Pon::Object(hm.iter().map(|(k,v)| {
-                    (k.clone(), self.resolve_property_node_value(entity, v).unwrap())
+                    (k.clone(), self.resolve_pon_dependencies(entity_id, v).unwrap())
                 }).collect())),
             &Pon::Array(ref arr) => Ok(Pon::Array(arr.iter().map(|v| {
-                    self.resolve_property_node_value(entity, v).unwrap()
+                    self.resolve_pon_dependencies(entity_id, v).unwrap()
                 }).collect())),
             _ => Ok(node.clone())
         }
@@ -284,7 +302,7 @@ impl Document {
 
     fn get_entity_property_value(&self, entity: &Entity, name: String) -> Result<Pon, DocError> {
         match entity.properties.get(&name) {
-            Some(prop) => self.resolve_property_node_value(entity, &prop.expression),
+            Some(prop) => Ok(prop.expression.borrow().clone()),
             None => Err(DocError::NoSuchProperty(name.to_string()))
         }
     }
@@ -345,7 +363,7 @@ impl Document {
         let attrs: Vec<xml::attribute::OwnedAttribute> = entity.properties.iter().map(|(name, prop)| {
             xml::attribute::OwnedAttribute {
                 name: xml::name::OwnedName::local(name.to_string()),
-                value: prop.expression.to_string()
+                value: prop.expression.borrow().to_string()
             }
         }).collect();
         writer.write(xml::writer::events::XmlEvent::StartElement {
