@@ -82,8 +82,8 @@ impl ISystem for System {
     fn get_entity_by_name(&self, name: &str) -> Option<EntityId> {
         self.document.get_entity_by_name(name)
     }
-    fn set_property(&mut self, entity_id: &EntityId, name: &str, value: Pon) -> Result<(), DocError> {
-        match self.document.set_property(entity_id, name, value) {
+    fn set_property(&mut self, entity_id: &EntityId, property_key: &str, value: Pon) -> Result<(), DocError> {
+        match self.document.set_property(entity_id, property_key, value) {
             Ok(invalid_props) => {
                 self.invalidated_properties.push_all(&invalid_props);
                 Ok(())
@@ -91,11 +91,14 @@ impl ISystem for System {
             Err(err) => Err(err)
         }
     }
-    fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Ref<Pon>, DocError> {
-        self.document.get_property_value(entity_id, name)
+    fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Ref<Pon>, DocError> {
+        self.document.get_property_value(entity_id, property_key)
     }
-    fn has_property(&self, entity_id: &EntityId, name: &str) -> Result<bool, DocError> {
-        self.document.has_property(entity_id, name)
+    fn get_property_expression(&self, entity_id: &EntityId, property_key: &str) -> Result<&Pon, DocError> {
+        self.document.get_property_expression(entity_id, property_key)
+    }
+    fn has_property(&self, entity_id: &EntityId, property_key: &str) -> Result<bool, DocError> {
+        self.document.has_property(entity_id, property_key)
     }
     fn resolve_named_prop_ref(&self, entity_id: &EntityId, named_prop_ref: &NamedPropRef) -> Result<PropRef, DocError> {
         self.document.resolve_named_prop_ref(entity_id, named_prop_ref)

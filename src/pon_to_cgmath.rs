@@ -192,6 +192,20 @@ impl<'a> Translatable<'a, Matrix4<f32>> for Pon {
         }
     }
 }
+impl ToPon for Matrix4<f32> {
+    fn to_pon(&self) -> Pon {
+        Pon::TypedPon(Box::new(TypedPon {
+            type_name: "matrix".to_string(),
+            data: Pon::FloatArray(vec![
+                self.x.x, self.x.y, self.x.z, self.x.w,
+                self.y.x, self.y.y, self.y.z, self.y.w,
+                self.z.x, self.z.y, self.z.z, self.z.w,
+                self.w.x, self.w.y, self.w.z, self.w.w,
+            ])
+        }))
+    }
+}
+
 
 #[test]
 fn test_pon_to_cgmath() {

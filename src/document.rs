@@ -157,9 +157,18 @@ impl Document {
         }
         return Ok(cascades);
     }
-    pub fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Ref<Pon>, DocError> {
+    pub fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Ref<Pon>, DocError> {
         match self.entities.get(entity_id) {
-            Some(entity) => self.get_entity_property_value(entity, name),
+            Some(entity) => self.get_entity_property_value(entity, property_key),
+            None => Err(DocError::NoSuchEntity)
+        }
+    }
+    pub fn get_property_expression(&self, entity_id: &EntityId, property_key: &str) -> Result<&Pon, DocError> {
+        match self.entities.get(entity_id) {
+            Some(entity) => match entity.properties.get(property_key) {
+                Some(property) => Ok(&property.expression),
+                None => Err(DocError::NoSuchProperty(property_key.to_string()))
+            },
             None => Err(DocError::NoSuchEntity)
         }
     }
