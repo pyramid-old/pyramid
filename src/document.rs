@@ -11,6 +11,7 @@ use std::collections::hash_map::Keys;
 use std::path::Path;
 use std::fs::PathExt;
 use std::io::Write;
+use std::cell::RefCell;
 
 use xml::reader::EventReader;
 use xml::reader::events::*;
@@ -39,6 +40,7 @@ pub type PropertyIter<'a> = Keys<'a, String, Property>;
 #[derive(Debug)]
 struct Property {
     expression: Pon,
+    cached_resolved_value: RefCell<Option<Pon>>,
     dependants: Vec<PropRef>
 }
 
@@ -138,13 +140,20 @@ impl Document {
             } else {
                 ent_mut.properties.insert(name.to_string(), Property {
                     expression: expression,
-                    dependants: vec![]
+                    dependants: vec![],
+                    cached_resolved_value: RefCell::new(None)
                 });
             }
         }
         let entity = self.entities.get(entity_id).unwrap();
         let mut cascades = vec![PropRef { entity_id: entity_id.clone(), property_key: name.to_string() }];
         try!(self.build_property_cascades(entity, name.to_string(), &mut cascades));
+        for pr in &cascades {
+            let ent = self.entities.get(&pr.entity_id).unwrap();
+            let prop = ent.properties.get(&pr.property_key).unwrap();
+            let mut v = prop.cached_resolved_value.borrow_mut();
+            *v = None;
+        }
         return Ok(cascades);
     }
     pub fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Pon, DocError> {
@@ -284,7 +293,17 @@ impl Document {
 
     fn get_entity_property_value(&self, entity: &Entity, name: String) -> Result<Pon, DocError> {
         match entity.properties.get(&name) {
-            Some(prop) => self.resolve_property_node_value(entity, &prop.expression),
+            Some(prop) => {
+                if prop.cached_resolved_value.borrow().is_some() {
+                    return Ok(prop.cached_resolved_value.borrow().clone().unwrap());
+                }
+                let val = try!(self.resolve_property_node_value(entity, &prop.expression));
+                {
+                    let mut p = prop.cached_resolved_value.borrow_mut();
+                    *p = Some(val);
+                }
+                return Ok(prop.cached_resolved_value.borrow().clone().unwrap());
+            },
             None => Err(DocError::NoSuchProperty(name.to_string()))
         }
     }
