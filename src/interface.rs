@@ -12,6 +12,7 @@ pub trait ISystem {
     fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Ref<Pon>, DocError>;
     fn has_property(&self, entity_id: &EntityId, name: &str) -> Result<bool, DocError>;
     fn resolve_named_prop_ref(&self, entity_id: &EntityId, named_prop_ref: &NamedPropRef) -> Result<PropRef, DocError>;
+    fn resolve_pon_dependencies(&self, entity_id: &EntityId, node: &Pon) -> Result<Pon, DocError>;
     fn get_entity_type_name(&self, entity_id: &EntityId) -> Result<&String, DocError>;
     fn get_properties(&self, entity_id: &EntityId) -> Result<Vec<PropRef>, DocError>;
     fn get_children(&self, entity_id: &EntityId) -> Result<&Vec<EntityId>, DocError>;

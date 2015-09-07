@@ -268,25 +268,25 @@ impl Document {
         }
     }
 
-    fn resolve_property_node_value(&self, entity: &Entity, node: &Pon) -> Result<Pon, DocError> {
+    pub fn resolve_pon_dependencies(&self, entity_id: &EntityId, node: &Pon) -> Result<Pon, DocError> {
         match node {
             &Pon::TypedPon(box TypedPon { ref type_name, ref data }) =>
                 Ok(Pon::TypedPon(Box::new(TypedPon {
                     type_name: type_name.clone(),
-                    data: try!(self.resolve_property_node_value(entity, data))
+                    data: try!(self.resolve_pon_dependencies(entity_id, data))
                 }))),
             &Pon::DependencyReference(ref named_prop_ref) => {
-                let prop_ref = try!(self.resolve_named_prop_ref(&entity.id, &named_prop_ref));
+                let prop_ref = try!(self.resolve_named_prop_ref(&entity_id, &named_prop_ref));
                 match self.entities.get(&prop_ref.entity_id) {
                     Some(entity) => Ok((try!(self.get_entity_property_value(entity, &prop_ref.property_key))).clone()),
                     None => Err(DocError::BadReference)
                 }
             },
             &Pon::Object(ref hm) => Ok(Pon::Object(hm.iter().map(|(k,v)| {
-                    (k.clone(), self.resolve_property_node_value(entity, v).unwrap())
+                    (k.clone(), self.resolve_pon_dependencies(entity_id, v).unwrap())
                 }).collect())),
             &Pon::Array(ref arr) => Ok(Pon::Array(arr.iter().map(|v| {
-                    self.resolve_property_node_value(entity, v).unwrap()
+                    self.resolve_pon_dependencies(entity_id, v).unwrap()
                 }).collect())),
             _ => Ok(node.clone())
         }
@@ -298,7 +298,7 @@ impl Document {
                 if prop.cached_resolved_value.borrow().is_some() {
                     return Ok(Ref::map(prop.cached_resolved_value.borrow(), |x| match x { &Some(ref x) => x, &None => unreachable!() }));
                 }
-                let val = try!(self.resolve_property_node_value(entity, &prop.expression));
+                let val = try!(self.resolve_pon_dependencies(&entity.id, &prop.expression));
                 {
                     let mut p = prop.cached_resolved_value.borrow_mut();
                     *p = Some(val);

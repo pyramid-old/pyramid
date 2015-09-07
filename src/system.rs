@@ -100,6 +100,9 @@ impl ISystem for System {
     fn resolve_named_prop_ref(&self, entity_id: &EntityId, named_prop_ref: &NamedPropRef) -> Result<PropRef, DocError> {
         self.document.resolve_named_prop_ref(entity_id, named_prop_ref)
     }
+    fn resolve_pon_dependencies(&self, entity_id: &EntityId, node: &Pon) -> Result<Pon, DocError> {
+        self.document.resolve_pon_dependencies(entity_id, node)
+    }
     fn get_entity_type_name(&self, entity_id: &EntityId) -> Result<&String, DocError> {
         self.document.get_entity_type_name(entity_id)
     }
