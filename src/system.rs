@@ -4,6 +4,7 @@ extern crate time;
 use std::mem;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::cell::Ref;
 
 use document::*;
 use pon::*;
@@ -90,7 +91,7 @@ impl ISystem for System {
             Err(err) => Err(err)
         }
     }
-    fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Pon, DocError> {
+    fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Ref<Pon>, DocError> {
         self.document.get_property_value(entity_id, name)
     }
     fn has_property(&self, entity_id: &EntityId, name: &str) -> Result<bool, DocError> {

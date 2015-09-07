@@ -12,6 +12,7 @@ use std::path::Path;
 use std::fs::PathExt;
 use std::io::Write;
 use std::cell::RefCell;
+use std::cell::Ref;
 
 use xml::reader::EventReader;
 use xml::reader::events::*;
@@ -156,9 +157,9 @@ impl Document {
         }
         return Ok(cascades);
     }
-    pub fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Pon, DocError> {
+    pub fn get_property_value(&self, entity_id: &EntityId, name: &str) -> Result<Ref<Pon>, DocError> {
         match self.entities.get(entity_id) {
-            Some(entity) => self.get_entity_property_value(entity, name.to_string()),
+            Some(entity) => self.get_entity_property_value(entity, name),
             None => Err(DocError::NoSuchEntity)
         }
     }
@@ -277,7 +278,7 @@ impl Document {
             &Pon::DependencyReference(ref named_prop_ref) => {
                 let prop_ref = try!(self.resolve_named_prop_ref(&entity.id, &named_prop_ref));
                 match self.entities.get(&prop_ref.entity_id) {
-                    Some(entity) => self.get_entity_property_value(entity, prop_ref.property_key.clone()),
+                    Some(entity) => Ok((try!(self.get_entity_property_value(entity, &prop_ref.property_key))).clone()),
                     None => Err(DocError::BadReference)
                 }
             },
@@ -291,18 +292,18 @@ impl Document {
         }
     }
 
-    fn get_entity_property_value(&self, entity: &Entity, name: String) -> Result<Pon, DocError> {
-        match entity.properties.get(&name) {
+    fn get_entity_property_value<'a, 'b>(&'a self, entity: &'a Entity, name: &'b str) -> Result<Ref<'a, Pon>, DocError> {
+        match entity.properties.get(name) {
             Some(prop) => {
                 if prop.cached_resolved_value.borrow().is_some() {
-                    return Ok(prop.cached_resolved_value.borrow().clone().unwrap());
+                    return Ok(Ref::map(prop.cached_resolved_value.borrow(), |x| match x { &Some(ref x) => x, &None => unreachable!() }));
                 }
                 let val = try!(self.resolve_property_node_value(entity, &prop.expression));
                 {
                     let mut p = prop.cached_resolved_value.borrow_mut();
                     *p = Some(val);
                 }
-                return Ok(prop.cached_resolved_value.borrow().clone().unwrap());
+                return Ok(Ref::map(prop.cached_resolved_value.borrow(), |x| match x { &Some(ref x) => x, &None => unreachable!() }));
             },
             None => Err(DocError::NoSuchProperty(name.to_string()))
         }
