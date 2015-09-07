@@ -412,7 +412,7 @@ impl ToString for Document {
 fn test_property_get() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "x"), Ok(pon_parse::body("5.0").unwrap()));
+    assert_eq!(&*doc.get_property_value(&ent, "x").unwrap(), &pon_parse::body("5.0").unwrap());
 }
 
 #[test]
@@ -422,49 +422,49 @@ fn test_property_set() {
     {
         doc.set_property(&ent, "x", Pon::Integer(9));
     }
-    assert_eq!(doc.get_property_value(&ent, "x"), Ok(pon_parse::body("9").unwrap()));
+    assert_eq!(&*doc.get_property_value(&ent, "x").unwrap(), &pon_parse::body("9").unwrap());
 }
 
 #[test]
 fn test_property_reference_straight() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@this.x" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(pon_parse::body("5.0").unwrap()));
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &pon_parse::body("5.0").unwrap());
 }
 
 #[test]
 fn test_property_reference_object() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="{ some: @this.x }" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(pon_parse::body("{ some: 5.0 }").unwrap()));
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &pon_parse::body("{ some: 5.0 }").unwrap());
 }
 
 #[test]
 fn test_property_reference_transfer() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="something @this.x" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(pon_parse::body("something 5.0").unwrap()));
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &pon_parse::body("something 5.0").unwrap());
 }
 
 #[test]
 fn test_property_reference_array() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="[@this.x]" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(pon_parse::body("[5.0]").unwrap()));
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &pon_parse::body("[5.0]").unwrap());
 }
 
 #[test]
 fn test_property_reference_bad_ref() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@what.x" />"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Err(DocError::NoSuchProperty("y".to_string())));
+    assert_eq!(doc.get_property_value(&ent, "y").err().unwrap(), DocError::NoSuchProperty("y".to_string()));
 }
 
 #[test]
 fn test_property_reference_parent() {
     let doc = Document::from_string(r#"<Entity x="5.0"><Entity name="tmp" y="@parent.x" /></Entity>"#);
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(Pon::Float(5.0)));
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &Pon::Float(5.0));
 }
 
 #[test]
@@ -477,5 +477,5 @@ fn test_property_reference_update() {
         assert_eq!(cascades[0], PropRef { entity_id: ent, property_key: "x".to_string() });
         assert_eq!(cascades[1], PropRef { entity_id: ent, property_key: "y".to_string() });
     }
-    assert_eq!(doc.get_property_value(&ent, "y"), Ok(pon_parse::body("9").unwrap()));
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &pon_parse::body("9").unwrap());
 }
