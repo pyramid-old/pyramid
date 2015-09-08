@@ -183,7 +183,10 @@ impl Document {
     }
     pub fn has_property(&self, entity_id: &EntityId, name: &str) -> Result<bool, DocError> {
         match self.entities.get(entity_id) {
-            Some(entity) => Ok(entity.properties.contains_key(name)),
+            Some(entity) => match entity.properties.get(name) {
+                Some(prop) => Ok(prop.expression.is_some()),
+                None => Ok(false)
+            },
             None => Err(DocError::NoSuchEntity(*entity_id))
         }
     }
