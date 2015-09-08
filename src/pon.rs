@@ -11,6 +11,7 @@ use std::hash::Hasher;
 use std::hash::Hash;
 use std::cmp::Eq;
 use cgmath;
+use std::intrinsics;
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash, PartialOrd, Ord)]
 pub enum EntityPath {
@@ -115,7 +116,12 @@ impl Pon {
     pub fn translate<'a, T>(&'a self) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, T> {
         match self.inner_translate() {
             Ok(val) => Ok(val),
-            Err(err) => Err(PonTranslateErr::InnerError { in_pon: self.clone(), error: Box::new(err) })
+            Err(err) => {
+                let type_name = unsafe {
+                    ::std::intrinsics::type_name::<T>()
+                };
+                Err(PonTranslateErr::InnerError { in_pon: self.clone(), error: Box::new(err), trying_to_translate_to: type_name.to_string() })
+            }
         }
     }
 

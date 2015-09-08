@@ -11,7 +11,7 @@ pub enum PonTranslateErr {
     NoSuchField { field: String },
     InvalidValue { value: String },
     UnrecognizedType(String),
-    InnerError { in_pon: Pon, error: Box<PonTranslateErr> },
+    InnerError { in_pon: Pon, error: Box<PonTranslateErr>, trying_to_translate_to: String },
     Generic(String)
 }
 
@@ -22,9 +22,9 @@ impl ToString for PonTranslateErr {
             &PonTranslateErr::NoSuchField { ref field  } => format!("No such field: {}", field),
             &PonTranslateErr::InvalidValue { ref value  } => format!("Invalid value: {}", value),
             &PonTranslateErr::UnrecognizedType(ref value) => format!("Unregcognized type: {}", value),
-            &PonTranslateErr::InnerError { ref in_pon, ref error } => {
+            &PonTranslateErr::InnerError { ref in_pon, ref error, ref trying_to_translate_to } => {
                 let p = in_pon.to_string();
-                format!("{} in {}...", error.to_string(), &p[0..cmp::min(50, p.len())])
+                format!("while trying to translate to {} got error {} in {}...", trying_to_translate_to, error.to_string(), &p[0..cmp::min(50, p.len())])
             },
             &PonTranslateErr::Generic(ref value) => format!("Generic error: {}", value),
         }
