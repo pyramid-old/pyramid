@@ -6,7 +6,7 @@ body -> Pon
   = sep* n:node sep* { n }
 
 node -> Pon
-  = float / integer / string / object / array / nil / transform / dependency_reference / reference
+  = float / integer / string / boolean / object / array / nil / transform / dependency_reference / reference
 
 transform -> Pon
   = type_name:identifier sep* data:node sep* {
@@ -82,5 +82,9 @@ string -> Pon
 
 string_inner -> String
   = [^']* { match_str.to_string() }
+
+boolean -> Pon
+  = "true" { Pon::Boolean(true) }
+  / "false" { Pon::Boolean(false) }
 
 sep = [ \t\r\n]

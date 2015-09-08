@@ -82,6 +82,7 @@ pub enum Pon {
     Float(f32),
     Integer(i64),
     String(String),
+    Boolean(bool),
     Vector3(cgmath::Vector3<f32>),
     Vector4(cgmath::Vector4<f32>),
     Nil
@@ -110,6 +111,7 @@ impl ToString for Pon {
             &Pon::Float(ref v) => format!("{:.10}", v),
             &Pon::Integer(ref v) => v.to_string(),
             &Pon::String(ref v) => format!("'{}'", v),
+            &Pon::Boolean(ref v) => format!("{}", v),
             &Pon::Vector3(ref v) => v.to_pon().to_string(),
             &Pon::Vector4(ref v) => v.to_pon().to_string(),
             &Pon::Nil => "()".to_string()
@@ -225,6 +227,14 @@ impl<'a> Translatable<'a, &'a str> for Pon {
         match self {
             &Pon::String(ref value) => Ok(&value),
             _ => Err(PonTranslateErr::MismatchType { expected: "String".to_string(), found: format!("{:?}", self) })
+        }
+    }
+}
+impl<'a> Translatable<'a, &'a bool> for Pon {
+    fn inner_translate(&'a self) -> Result<&'a bool, PonTranslateErr> {
+        match self {
+            &Pon::Boolean(ref value) => Ok(&value),
+            _ => Err(PonTranslateErr::MismatchType { expected: "Boolean".to_string(), found: format!("{:?}", self) })
         }
     }
 }
