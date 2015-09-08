@@ -206,6 +206,11 @@ impl ToPon for Pon {
         self.clone()
     }
 }
+impl ToPon for f32 {
+    fn to_pon(&self) -> Pon {
+        Pon::Float(*self)
+    }
+}
 impl ToPon for Vec<f32> {
     fn to_pon(&self) -> Pon {
         Pon::Array(self.iter().map(|v| Pon::Float(*v)).collect())
