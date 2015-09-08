@@ -20,9 +20,9 @@ use xml::reader::events::*;
 #[derive(PartialEq, Debug, Clone)]
 pub enum DocError {
     PonTranslateErr(PonTranslateErr),
-    BadReference,
     NoSuchProperty(String),
-    NoSuchEntity,
+    NoSuchEntity(EntityId),
+    CantFindEntityByName(String),
     InvalidParent
 }
 
@@ -113,10 +113,10 @@ impl Document {
     // returns all props that were invalidated
     pub fn set_property(&mut self, entity_id: &EntityId, property_key: &str, expression: Pon) -> Result<Vec<PropRef>, DocError> {
         //println!("set property {} {:?}", property_key, expression);
-        let mut dependencies: Vec<PropRef> = {
+        let dependencies: Vec<PropRef> = {
             let entity = match self.entities.get(entity_id) {
                 Some(entity) => entity,
-                None => return Err(DocError::NoSuchEntity)
+                None => return Err(DocError::NoSuchEntity(*entity_id))
             };
             try!(self.build_property_node_dependencies(entity, &expression))
         };
@@ -127,10 +127,10 @@ impl Document {
                         Some(property) => {
                             property.dependants.push(PropRef { entity_id: entity_id.clone(), property_key: property_key.to_string() });
                         },
-                        None => return Err(DocError::BadReference)
+                        None => return Err(DocError::NoSuchProperty(dep_prop_key.clone()))
                     }
                 },
-                None => return Err(DocError::BadReference)
+                None => return Err(DocError::NoSuchEntity(dep_ent_id))
             }
         }
         {
@@ -160,7 +160,7 @@ impl Document {
     pub fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Ref<Pon>, DocError> {
         match self.entities.get(entity_id) {
             Some(entity) => self.get_entity_property_value(entity, property_key),
-            None => Err(DocError::NoSuchEntity)
+            None => Err(DocError::NoSuchEntity(*entity_id))
         }
     }
     pub fn get_property_expression(&self, entity_id: &EntityId, property_key: &str) -> Result<&Pon, DocError> {
@@ -169,25 +169,25 @@ impl Document {
                 Some(property) => Ok(&property.expression),
                 None => Err(DocError::NoSuchProperty(property_key.to_string()))
             },
-            None => Err(DocError::NoSuchEntity)
+            None => Err(DocError::NoSuchEntity(*entity_id))
         }
     }
     pub fn has_property(&self, entity_id: &EntityId, name: &str) -> Result<bool, DocError> {
         match self.entities.get(entity_id) {
             Some(entity) => Ok(entity.properties.contains_key(name)),
-            None => Err(DocError::NoSuchEntity)
+            None => Err(DocError::NoSuchEntity(*entity_id))
         }
     }
     pub fn get_properties(&self, entity_id: &EntityId) -> Result<Vec<PropRef>, DocError> {
         match self.entities.get(&entity_id) {
             Some(entity) => Ok(entity.properties.keys().map(|key| PropRef { entity_id: entity_id.clone(), property_key: key.clone() }).collect()),
-            None => Err(DocError::NoSuchEntity)
+            None => Err(DocError::NoSuchEntity(*entity_id))
         }
     }
     pub fn get_children(&self, entity_id: &EntityId) -> Result<&Vec<EntityId>, DocError> {
         match self.entities.get(&entity_id) {
             Some(entity) => Ok(&entity.children_ids),
-            None => Err(DocError::NoSuchEntity)
+            None => Err(DocError::NoSuchEntity(*entity_id))
         }
     }
     pub fn search_children(&self, entity_id: &EntityId, name: &str) -> Result<EntityId, DocError> {
@@ -204,9 +204,9 @@ impl Document {
                         _ => {}
                     }
                 }
-                Err(DocError::BadReference)
+                Err(DocError::CantFindEntityByName(name.to_string()))
             },
-            None => Err(DocError::BadReference)
+            None => Err(DocError::NoSuchEntity(*entity_id))
         }
     }
     pub fn resolve_entity_path(&self, start_entity_id: &EntityId, path: &EntityPath) -> Result<EntityId, DocError> {
@@ -214,11 +214,11 @@ impl Document {
             &EntityPath::This => Ok(*start_entity_id),
             &EntityPath::Parent => match self.entities.get(start_entity_id) {
                 Some(entity) => Ok(entity.parent_id.clone()),
-                None => Err(DocError::BadReference)
+                None => Err(DocError::NoSuchEntity(*start_entity_id))
             },
             &EntityPath::Named(ref name) => match self.entity_ids_by_name.get(name) {
                 Some(entity_id) => Ok(entity_id.clone()),
-                None => Err(DocError::BadReference)
+                None => Err(DocError::CantFindEntityByName(name.to_string()))
             },
             &EntityPath::Search(ref path, ref search) => {
                 match self.resolve_entity_path(start_entity_id, path) {
@@ -235,7 +235,7 @@ impl Document {
     pub fn get_entity_type_name(&self, entity_id: &EntityId) -> Result<&String, DocError> {
         match self.entities.get(&entity_id) {
             Some(entity) => Ok(&entity.type_name),
-            None => Err(DocError::NoSuchEntity)
+            None => Err(DocError::NoSuchEntity(*entity_id))
         }
     }
 
@@ -288,7 +288,7 @@ impl Document {
                 let prop_ref = try!(self.resolve_named_prop_ref(&entity_id, &named_prop_ref));
                 match self.entities.get(&prop_ref.entity_id) {
                     Some(entity) => Ok((try!(self.get_entity_property_value(entity, &prop_ref.property_key))).clone()),
-                    None => Err(DocError::BadReference)
+                    None => Err(DocError::NoSuchEntity(prop_ref.entity_id))
                 }
             },
             &Pon::Object(ref hm) => Ok(Pon::Object(hm.iter().map(|(k,v)| {
