@@ -1,6 +1,5 @@
 
 extern crate xml;
-peg_file! pon_parse("pon.rustpeg");
 
 use pon::*;
 
@@ -8,8 +7,8 @@ use std::fs::File;
 use std::io::BufReader;
 use std::collections::HashMap;
 use std::collections::hash_map::Keys;
+use std::collections::hash_map::Entry;
 use std::path::Path;
-use std::fs::PathExt;
 use std::io::Write;
 use std::cell::RefCell;
 use std::cell::Ref;
@@ -85,7 +84,7 @@ impl Document {
             parent_id: parent_id,
             children_ids: vec![]
         };
-        if parent_id != -1 {
+        if parent_id != 0 {
             let parent = match self.entities.get_mut(&parent_id) {
                 Some(parent) => parent,
                 None => return Err(DocError::InvalidParent)
@@ -123,11 +122,18 @@ impl Document {
         for PropRef { entity_id: dep_ent_id, property_key: dep_prop_key } in dependencies {
             match self.entities.get_mut(&dep_ent_id) {
                 Some(dep_ent) => {
-                    match dep_ent.properties.get_mut(&dep_prop_key) {
-                        Some(property) => {
-                            property.dependants.push(PropRef { entity_id: entity_id.clone(), property_key: property_key.to_string() });
+                    let prop_ref = PropRef { entity_id: entity_id.clone(), property_key: property_key.to_string() };
+                    match dep_ent.properties.entry(dep_prop_key) {
+                        Entry::Occupied(o) => {
+                            o.into_mut().dependants.push(prop_ref);
                         },
-                        None => return Err(DocError::NoSuchProperty(dep_prop_key.clone()))
+                        Entry::Vacant(v) => {
+                            v.insert(Property {
+                                expression: Pon::Nil,
+                                dependants: vec![prop_ref],
+                                cached_resolved_value: RefCell::new(None)
+                            });
+                        }
                     }
                 },
                 None => return Err(DocError::NoSuchEntity(dep_ent_id))
@@ -239,17 +245,26 @@ impl Document {
         }
     }
 
-    pub fn from_file(path: &Path) -> Document {
-        let root_path = path.parent().unwrap();
+    pub fn from_file(path: &Path) -> Result<Document, DocError> {
         let mut doc = Document::new();
-        doc.append_from_event_reader(&root_path, &mut vec![], event_reader_from_file(path).events());
-        return doc;
+        let mut warnings = vec![];
+        try!(doc.append_from_event_reader(&mut vec![], event_reader_from_file(path).events(), &mut warnings));
+        if warnings.len() > 0 {
+            println!("{} WARNINGS PARSING DOCUMENT:", warnings.len());
+            println!("{}", warnings.join("\n"));
+        }
+        Ok(doc)
     }
-    pub fn from_string(string: &str) -> Document {
+    pub fn from_string(string: &str) -> Result<Document, DocError> {
         let mut doc = Document::new();
         let mut parser = EventReader::from_str(string);
-        doc.append_from_event_reader(&Path::new("."), &mut vec![], parser.events());
-        return doc;
+        let mut warnings = vec![];
+        try!(doc.append_from_event_reader(&mut vec![], parser.events(), &mut warnings));
+        if warnings.len() > 0 {
+            println!("{} WARNINGS PARSING DOCUMENT:", warnings.len());
+            println!("{}", warnings.join("\n"));
+        }
+        Ok(doc)
     }
 
 
@@ -318,54 +333,48 @@ impl Document {
         }
     }
 
-    fn append_from_event_reader<T: Iterator<Item=XmlEvent>>(&mut self, root_path: &Path, mut entity_stack: &mut Vec<EntityId>, mut events: T) {
+    fn append_from_event_reader<T: Iterator<Item=XmlEvent>>(&mut self, mut entity_stack: &mut Vec<EntityId>, mut events: T, warnings: &mut Vec<String>) -> Result<(), DocError> {
         while let Some(e) = events.next() {
             match e {
                 XmlEvent::StartElement { name: type_name, attributes, .. } => {
-                    let mut entity_name = match attributes.iter().find(|x| x.name.local_name == "name") {
+                    let entity_name = match attributes.iter().find(|x| x.name.local_name == "name") {
                         Some(attr) => Some(attr.value.to_string()),
                         None => None
                     };
-                    if type_name.local_name == "Include" {
-                        let include_file = match attributes.iter().find(|x| x.name.local_name == "file" ) {
-                            Some(file) => file.value.clone(),
-                            None => panic!("Include file field missing")
-                        };
-                        let include_path_buf = root_path.join(include_file);
-                        let include_path = include_path_buf.as_path();
-                        if !include_path.exists() {
-                            panic!("Include: No such file: {:?}", include_path);
-                        }
-                        let mut include_event_reader = event_reader_from_file(include_path);
-                        let include_root_path = include_path.parent().unwrap();
-                        self.append_from_event_reader(&include_root_path, &mut entity_stack, include_event_reader.events());
-                        continue;
-                    }
                     let parent = match entity_stack.last() {
                         Some(parent) => *parent,
-                        None => -1
+                        None => 0
                     };
-                    let entity_id = self.append_entity(parent, type_name.local_name.to_string(), entity_name).unwrap();
+                    let entity_id = match self.append_entity(parent, type_name.local_name.to_string(), entity_name) {
+                        Ok(id) => id,
+                        Err(err) => {
+                            warnings.push(format!("Failed to append entity {:?}: {:?}", type_name.local_name, err));
+                            continue;
+                        }
+                    };
 
                     for attribute in attributes {
-                        if (attribute.name.local_name == "name") { continue; }
-                        match pon_parse::body(&attribute.value) {
-                            Ok(node) => self.set_property(&entity_id, &attribute.name.local_name, node),
-                            Err(err) => panic!("Error parsing: {} error: {:?}", attribute.value, err)
+                        if attribute.name.local_name == "name" { continue; }
+                        match Pon::from_string(&attribute.value) {
+                            Ok(node) => match self.set_property(&entity_id, &attribute.name.local_name, node) {
+                                Ok(_) => {},
+                                Err(err) => warnings.push(format!("Failed to set property {} for entity {:?}: {:?}", attribute.name.local_name, type_name.local_name, err))
+                            },
+                            Err(err) => warnings.push(format!("Error parsing property {} of entity {:?}: {} with error: {:?}", attribute.name.local_name, type_name.local_name, attribute.value, err))
                         };
                     }
                     entity_stack.push(entity_id);
                 }
-                XmlEvent::EndElement { name: type_name } => {
+                XmlEvent::EndElement { .. } => {
                     entity_stack.pop();
                 }
                 XmlEvent::Error(e) => {
-                    println!("Error: {}", e);
-                    break;
+                    warnings.push(format!("Xml parsing error: {}", e));
                 }
                 _ => {}
             }
         }
+        Ok(())
     }
 
     fn entity_to_xml<T: Write>(&self, entity_id: &EntityId, writer: &mut xml::writer::EventWriter<T>) {
@@ -388,13 +397,13 @@ impl Document {
             name: type_name.clone(),
             attributes: attrs.iter().map(|x| x.borrow()).collect(),
             namespace: &xml::namespace::Namespace::empty()
-        });
+        }).unwrap();
         for e in &entity.children_ids {
             self.entity_to_xml(e, writer);
         }
         writer.write(xml::writer::events::XmlEvent::EndElement {
             name: type_name.clone()
-        });
+        }).unwrap();
     }
     fn to_xml(&self) -> String {
         let mut buff = vec![];
@@ -404,7 +413,7 @@ impl Document {
                 version: xml::common::XmlVersion::Version11,
                 encoding: None,
                 standalone: None
-            });
+            }).unwrap();
             self.entity_to_xml(&self.root, &mut writer);
         }
         String::from_utf8(buff).unwrap()
@@ -427,66 +436,66 @@ impl ToString for Document {
 
 #[test]
 fn test_property_get() {
-    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" />"#);
+    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(&*doc.get_property_value(&ent, "x").unwrap(), &pon_parse::body("5.0").unwrap());
+    assert_eq!(&*doc.get_property_value(&ent, "x").unwrap(), &Pon::from_string("5.0").unwrap());
 }
 
 #[test]
 fn test_property_set() {
-    let mut doc = Document::from_string(r#"<Entity name="tmp" x="5.0" />"#);
+    let mut doc = Document::from_string(r#"<Entity name="tmp" x="5.0" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
     {
-        doc.set_property(&ent, "x", Pon::Integer(9));
+        doc.set_property(&ent, "x", Pon::Integer(9)).unwrap();
     }
-    assert_eq!(&*doc.get_property_value(&ent, "x").unwrap(), &pon_parse::body("9").unwrap());
+    assert_eq!(&*doc.get_property_value(&ent, "x").unwrap(), &Pon::from_string("9").unwrap());
 }
 
 #[test]
 fn test_property_reference_straight() {
-    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@this.x" />"#);
+    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@this.x" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &pon_parse::body("5.0").unwrap());
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &Pon::from_string("5.0").unwrap());
 }
 
 #[test]
 fn test_property_reference_object() {
-    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="{ some: @this.x }" />"#);
+    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="{ some: @this.x }" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &pon_parse::body("{ some: 5.0 }").unwrap());
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &Pon::from_string("{ some: 5.0 }").unwrap());
 }
 
 #[test]
 fn test_property_reference_transfer() {
-    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="something @this.x" />"#);
+    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="something @this.x" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &pon_parse::body("something 5.0").unwrap());
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &Pon::from_string("something 5.0").unwrap());
 }
 
 #[test]
 fn test_property_reference_array() {
-    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="[@this.x]" />"#);
+    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="[@this.x]" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &pon_parse::body("[5.0]").unwrap());
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &Pon::from_string("[5.0]").unwrap());
 }
 
 #[test]
 fn test_property_reference_bad_ref() {
-    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@what.x" />"#);
+    let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@what.x" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
     assert_eq!(doc.get_property_value(&ent, "y").err().unwrap(), DocError::NoSuchProperty("y".to_string()));
 }
 
 #[test]
 fn test_property_reference_parent() {
-    let doc = Document::from_string(r#"<Entity x="5.0"><Entity name="tmp" y="@parent.x" /></Entity>"#);
+    let doc = Document::from_string(r#"<Entity x="5.0"><Entity name="tmp" y="@parent.x" /></Entity>"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
     assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &Pon::Float(5.0));
 }
 
 #[test]
 fn test_property_reference_update() {
-    let mut doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@this.x" />"#);
+    let mut doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@this.x" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
     {
         let cascades = doc.set_property(&ent, "x", Pon::Integer(9)).ok().unwrap();
@@ -494,5 +503,19 @@ fn test_property_reference_update() {
         assert_eq!(cascades[0], PropRef { entity_id: ent, property_key: "x".to_string() });
         assert_eq!(cascades[1], PropRef { entity_id: ent, property_key: "y".to_string() });
     }
-    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &pon_parse::body("9").unwrap());
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &Pon::from_string("9").unwrap());
+}
+
+
+#[test]
+fn test_property_reference_not_yet_created() {
+    let mut doc = Document::from_string(r#"<Entity name="tmp" y="@this.x" />"#).unwrap();
+    let ent = doc.get_entity_by_name("tmp").unwrap();
+    {
+        let cascades = doc.set_property(&ent, "x", Pon::Integer(9)).ok().unwrap();
+        assert_eq!(cascades.len(), 2);
+        assert_eq!(cascades[0], PropRef { entity_id: ent, property_key: "x".to_string() });
+        assert_eq!(cascades[1], PropRef { entity_id: ent, property_key: "y".to_string() });
+    }
+    assert_eq!(&*doc.get_property_value(&ent, "y").unwrap(), &Pon::from_string("9").unwrap());
 }
