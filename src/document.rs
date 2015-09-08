@@ -39,7 +39,7 @@ pub type PropertyIter<'a> = Keys<'a, String, Property>;
 
 #[derive(Debug)]
 struct Property {
-    expression: Pon,
+    expression: Option<Pon>,
     cached_resolved_value: RefCell<Option<Pon>>,
     dependants: Vec<PropRef>
 }
@@ -129,7 +129,7 @@ impl Document {
                         },
                         Entry::Vacant(v) => {
                             v.insert(Property {
-                                expression: Pon::Nil,
+                                expression: None,
                                 dependants: vec![prop_ref],
                                 cached_resolved_value: RefCell::new(None)
                             });
@@ -143,10 +143,10 @@ impl Document {
             let mut ent_mut = self.entities.get_mut(entity_id).unwrap();
             if ent_mut.properties.contains_key(property_key) {
                 let mut prop = ent_mut.properties.get_mut(property_key).unwrap();
-                prop.expression = expression;
+                prop.expression = Some(expression);
             } else {
                 ent_mut.properties.insert(property_key.to_string(), Property {
-                    expression: expression,
+                    expression: Some(expression),
                     dependants: vec![],
                     cached_resolved_value: RefCell::new(None)
                 });
@@ -172,7 +172,10 @@ impl Document {
     pub fn get_property_expression(&self, entity_id: &EntityId, property_key: &str) -> Result<&Pon, DocError> {
         match self.entities.get(entity_id) {
             Some(entity) => match entity.properties.get(property_key) {
-                Some(property) => Ok(&property.expression),
+                Some(property) => match &property.expression {
+                    &Some(ref expression) => Ok(expression),
+                    &None => Err(DocError::NoSuchProperty(property_key.to_string()))
+                },
                 None => Err(DocError::NoSuchProperty(property_key.to_string()))
             },
             None => Err(DocError::NoSuchEntity(*entity_id))
@@ -318,16 +321,19 @@ impl Document {
 
     fn get_entity_property_value<'a, 'b>(&'a self, entity: &'a Entity, name: &'b str) -> Result<Ref<'a, Pon>, DocError> {
         match entity.properties.get(name) {
-            Some(prop) => {
-                if prop.cached_resolved_value.borrow().is_some() {
+            Some(prop) => match &prop.expression {
+                &Some(ref expression) => {
+                    if prop.cached_resolved_value.borrow().is_some() {
+                        return Ok(Ref::map(prop.cached_resolved_value.borrow(), |x| match x { &Some(ref x) => x, &None => unreachable!() }));
+                    }
+                    let val = try!(self.resolve_pon_dependencies(&entity.id, expression));
+                    {
+                        let mut p = prop.cached_resolved_value.borrow_mut();
+                        *p = Some(val);
+                    }
                     return Ok(Ref::map(prop.cached_resolved_value.borrow(), |x| match x { &Some(ref x) => x, &None => unreachable!() }));
-                }
-                let val = try!(self.resolve_pon_dependencies(&entity.id, &prop.expression));
-                {
-                    let mut p = prop.cached_resolved_value.borrow_mut();
-                    *p = Some(val);
-                }
-                return Ok(Ref::map(prop.cached_resolved_value.borrow(), |x| match x { &Some(ref x) => x, &None => unreachable!() }));
+                },
+                &None => Err(DocError::NoSuchProperty(name.to_string()))
             },
             None => Err(DocError::NoSuchProperty(name.to_string()))
         }
@@ -380,10 +386,13 @@ impl Document {
     fn entity_to_xml<T: Write>(&self, entity_id: &EntityId, writer: &mut xml::writer::EventWriter<T>) {
         let entity = self.entities.get(entity_id).unwrap();
         let type_name = xml::name::Name::local(&entity.type_name);
-        let mut attrs: Vec<xml::attribute::OwnedAttribute> = entity.properties.iter().map(|(name, prop)| {
-            xml::attribute::OwnedAttribute {
-                name: xml::name::OwnedName::local(name.to_string()),
-                value: prop.expression.to_string()
+        let mut attrs: Vec<xml::attribute::OwnedAttribute> = entity.properties.iter().filter_map(|(name, prop)| {
+            match &prop.expression {
+                &Some(ref expression) => Some(xml::attribute::OwnedAttribute {
+                    name: xml::name::OwnedName::local(name.to_string()),
+                    value: expression.to_string()
+                }),
+                &None => None
             }
         }).collect();
         if let &Some(ref name) = &entity.name {
