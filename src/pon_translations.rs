@@ -24,7 +24,12 @@ impl ToString for PonTranslateErr {
             &PonTranslateErr::UnrecognizedType(ref value) => format!("Unregcognized type: {}", value),
             &PonTranslateErr::InnerError { ref in_pon, ref error, ref trying_to_translate_to } => {
                 let p = in_pon.to_string();
-                format!("while trying to translate to {} got error {} in {}...", trying_to_translate_to, error.to_string(), &p[0..cmp::min(50, p.len())])
+                let p = if p.len() < 50 {
+                    p.to_string()
+                } else {
+                    format!("{}...", &p[0..50])
+                };
+                format!("while trying to translate {} to {} got error: {}", p, trying_to_translate_to, error.to_string())
             },
             &PonTranslateErr::Generic(ref value) => format!("Generic error: {}", value),
         }
