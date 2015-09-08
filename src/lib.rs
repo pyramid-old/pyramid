@@ -12,6 +12,7 @@ pub mod document;
 mod pon_test;
 #[macro_use]
 pub mod pon;
+pub mod pon_translations;
 pub mod system;
 pub mod interface;
 pub mod pon_to_cgmath;
