@@ -50,7 +50,7 @@ impl ToString for NamedPropRef {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Hash)]
 pub struct PropRef {
     pub entity_id: EntityId,
     pub property_key: String
@@ -62,6 +62,9 @@ impl PropRef {
             property_key: property_key.to_string()
         }
     }
+}
+impl Eq for PropRef {
+    // hack, relies on PartialEq to be defined
 }
 
 #[derive(PartialEq, Debug, Clone)]

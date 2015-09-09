@@ -5,6 +5,8 @@ use std::mem;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::cell::Ref;
+use std::collections::HashSet;
+use std::iter::FromIterator;
 
 use document::*;
 use pon::*;
@@ -14,18 +16,18 @@ pub struct System {
     pub document: Document,
     prev_frame_time: time::Timespec,
     sub_systems: Vec<Rc<RefCell<Box<ISubSystem>>>>,
-    invalidated_properties: Vec<PropRef>,
+    changed_properties: HashSet<PropRef>,
     added_entities: Vec<EntityId>,
     pub running: bool
 }
 
 impl System {
     pub fn new() -> System {
-        let mut pyramid = System {
+        let pyramid = System {
             document: Document::new(),
             prev_frame_time: time::get_time(),
             sub_systems: vec![],
-            invalidated_properties: vec![],
+            changed_properties: HashSet::new(),
             added_entities: vec![],
             running: true
         };
@@ -40,6 +42,24 @@ impl System {
             system.borrow_mut().on_document_loaded(self);
         }
     }
+    fn build_property_cascades(&mut self) -> Vec<PropRef> {
+        let mut ips = mem::replace(&mut self.changed_properties, HashSet::new());
+        let mut queue: Vec<PropRef> = ips.clone().into_iter().collect();
+        while queue.len() > 0 {
+            let prop_ref = queue.pop().unwrap();
+            let deps = match self.document.get_property_dependants(&prop_ref.entity_id, &prop_ref.property_key) {
+                Ok(deps) => deps,
+                Err(err) => continue
+            };
+            for pr in deps {
+                if !ips.contains(pr) {
+                    ips.insert(pr.clone());
+                    queue.push(pr.clone());
+                }
+            }
+        }
+        ips.into_iter().collect()
+    }
     pub fn update(&mut self) {
         let t = time::get_time();
         let diff_time = t - self.prev_frame_time;
@@ -51,9 +71,9 @@ impl System {
             for e in ae {
                 self.on_entity_added(&e);
             }
-            let ips = mem::replace(&mut self.invalidated_properties, vec![]);
+            let ips = self.build_property_cascades();
             self.on_property_value_change(&ips);
-            self.invalidated_properties.len() > 0 || self.added_entities.len() > 0
+            self.changed_properties.len() > 0 || self.added_entities.len() > 0
         } {};
         self.prev_frame_time = t;
     }
@@ -84,14 +104,14 @@ impl ISystem for System {
     }
     fn set_property(&mut self, entity_id: &EntityId, property_key: &str, value: Pon) -> Result<(), DocError> {
         match self.document.set_property(entity_id, property_key, value) {
-            Ok(invalid_props) => {
-                self.invalidated_properties.push_all(&invalid_props);
+            Ok(_) => {
+                self.changed_properties.insert(PropRef::new(entity_id, property_key));
                 Ok(())
             },
             Err(err) => Err(err)
         }
     }
-    fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Ref<Pon>, DocError> {
+    fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Pon, DocError> {
         self.document.get_property_value(entity_id, property_key)
     }
     fn get_property_expression(&self, entity_id: &EntityId, property_key: &str) -> Result<&Pon, DocError> {

@@ -40,7 +40,6 @@ pub type PropertyIter<'a> = Keys<'a, String, Property>;
 #[derive(Debug)]
 struct Property {
     expression: Option<Pon>,
-    cached_resolved_value: RefCell<Option<Pon>>,
     dependants: Vec<PropRef>
 }
 
@@ -110,7 +109,7 @@ impl Document {
         &self.root
     }
     // returns all props that were invalidated
-    pub fn set_property(&mut self, entity_id: &EntityId, property_key: &str, expression: Pon) -> Result<Vec<PropRef>, DocError> {
+    pub fn set_property(&mut self, entity_id: &EntityId, property_key: &str, expression: Pon) -> Result<(), DocError> {
         //println!("set property {} {:?}", property_key, expression);
         let dependencies: Vec<PropRef> = {
             let entity = match self.entities.get(entity_id) {
@@ -130,8 +129,7 @@ impl Document {
                         Entry::Vacant(v) => {
                             v.insert(Property {
                                 expression: None,
-                                dependants: vec![prop_ref],
-                                cached_resolved_value: RefCell::new(None)
+                                dependants: vec![prop_ref]
                             });
                         }
                     }
@@ -147,23 +145,13 @@ impl Document {
             } else {
                 ent_mut.properties.insert(property_key.to_string(), Property {
                     expression: Some(expression),
-                    dependants: vec![],
-                    cached_resolved_value: RefCell::new(None)
+                    dependants: vec![]
                 });
             }
         }
-        let entity = self.entities.get(entity_id).unwrap();
-        let mut cascades = vec![PropRef { entity_id: entity_id.clone(), property_key: property_key.to_string() }];
-        try!(self.build_property_cascades(entity, &property_key, &mut cascades));
-        for pr in &cascades {
-            let ent = self.entities.get(&pr.entity_id).unwrap();
-            let prop = ent.properties.get(&pr.property_key).unwrap();
-            let mut v = prop.cached_resolved_value.borrow_mut();
-            *v = None;
-        }
-        return Ok(cascades);
+        Ok(())
     }
-    pub fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Ref<Pon>, DocError> {
+    pub fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Pon, DocError> {
         match self.entities.get(entity_id) {
             Some(entity) => self.get_entity_property_value(entity, property_key),
             None => Err(DocError::NoSuchEntity(*entity_id))
@@ -284,17 +272,13 @@ impl Document {
         return Ok(refs);
     }
 
-    // get a list of properties that are invalid if property (entity, key) changes
-    fn build_property_cascades(&self, entity: &Entity, property_key: &str, cascades: &mut Vec<PropRef>) -> Result<(), DocError> {
-        match entity.properties.get(property_key) {
-            Some(property) => {
-                for pr in &property.dependants {
-                    cascades.push(pr.clone());
-                    try!(self.build_property_cascades(self.entities.get(&pr.entity_id).unwrap(), &pr.property_key, cascades));
-                }
-                return Ok(());
+    pub fn get_property_dependants(&self, entity_id: &EntityId, property_key: &str) -> Result<&Vec<PropRef>, DocError> {
+        match self.entities.get(entity_id) {
+            Some(entity) => match entity.properties.get(property_key) {
+                Some(prop) => Ok(&prop.dependants),
+                None => Err(DocError::NoSuchProperty(property_key.to_string()))
             },
-            None => Err(DocError::NoSuchProperty(property_key.to_string()))
+            None => Err(DocError::NoSuchEntity(*entity_id))
         }
     }
 
@@ -322,20 +306,10 @@ impl Document {
         }
     }
 
-    fn get_entity_property_value<'a, 'b>(&'a self, entity: &'a Entity, name: &'b str) -> Result<Ref<'a, Pon>, DocError> {
+    fn get_entity_property_value<'a, 'b>(&'a self, entity: &'a Entity, name: &'b str) -> Result<Pon, DocError> {
         match entity.properties.get(name) {
             Some(prop) => match &prop.expression {
-                &Some(ref expression) => {
-                    if prop.cached_resolved_value.borrow().is_some() {
-                        return Ok(Ref::map(prop.cached_resolved_value.borrow(), |x| match x { &Some(ref x) => x, &None => unreachable!() }));
-                    }
-                    let val = try!(self.resolve_pon_dependencies(&entity.id, expression));
-                    {
-                        let mut p = prop.cached_resolved_value.borrow_mut();
-                        *p = Some(val);
-                    }
-                    return Ok(Ref::map(prop.cached_resolved_value.borrow(), |x| match x { &Some(ref x) => x, &None => unreachable!() }));
-                },
+                &Some(ref expression) => self.resolve_pon_dependencies(&entity.id, expression),
                 &None => Err(DocError::NoSuchProperty(name.to_string()))
             },
             None => Err(DocError::NoSuchProperty(name.to_string()))
