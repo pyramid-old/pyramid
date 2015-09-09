@@ -50,8 +50,7 @@ impl System {
                 Err(_) => continue
             };
             for pr in deps {
-                if !ips.contains(pr) {
-                    ips.insert(pr.clone());
+                if ips.insert(pr.clone()) {
                     queue.push(pr.clone());
                 }
             }
