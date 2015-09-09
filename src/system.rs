@@ -58,7 +58,9 @@ impl System {
                 }
             }
         }
-        ips.into_iter().collect()
+        let ips = ips.into_iter().collect();
+        self.document.clear_resolved_values_caches(&ips);
+        ips
     }
     pub fn update(&mut self) {
         let t = time::get_time();
@@ -111,7 +113,7 @@ impl ISystem for System {
             Err(err) => Err(err)
         }
     }
-    fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Pon, DocError> {
+    fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Ref<Pon>, DocError> {
         self.document.get_property_value(entity_id, property_key)
     }
     fn get_property_expression(&self, entity_id: &EntityId, property_key: &str) -> Result<&Pon, DocError> {

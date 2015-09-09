@@ -40,6 +40,7 @@ pub type PropertyIter<'a> = Keys<'a, String, Property>;
 #[derive(Debug)]
 struct Property {
     expression: Option<Pon>,
+    cached_resolved_value: RefCell<Option<Pon>>,
     dependants: Vec<PropRef>
 }
 
@@ -129,6 +130,7 @@ impl Document {
                         Entry::Vacant(v) => {
                             v.insert(Property {
                                 expression: None,
+                                cached_resolved_value: RefCell::new(None),
                                 dependants: vec![prop_ref]
                             });
                         }
@@ -145,13 +147,14 @@ impl Document {
             } else {
                 ent_mut.properties.insert(property_key.to_string(), Property {
                     expression: Some(expression),
+                    cached_resolved_value: RefCell::new(None),
                     dependants: vec![]
                 });
             }
         }
         Ok(())
     }
-    pub fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Pon, DocError> {
+    pub fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Ref<Pon>, DocError> {
         match self.entities.get(entity_id) {
             Some(entity) => self.get_entity_property_value(entity, property_key),
             None => Err(DocError::NoSuchEntity(*entity_id))
@@ -272,6 +275,15 @@ impl Document {
         return Ok(refs);
     }
 
+    pub fn clear_resolved_values_caches(&self, prop_refs: &Vec<PropRef>) {
+        for pr in prop_refs {
+            let ent = self.entities.get(&pr.entity_id).unwrap();
+            let prop = ent.properties.get(&pr.property_key).unwrap();
+            let mut v = prop.cached_resolved_value.borrow_mut();
+            *v = None;
+        }
+    }
+
     pub fn get_property_dependants(&self, entity_id: &EntityId, property_key: &str) -> Result<&Vec<PropRef>, DocError> {
         match self.entities.get(entity_id) {
             Some(entity) => match entity.properties.get(property_key) {
@@ -306,10 +318,20 @@ impl Document {
         }
     }
 
-    fn get_entity_property_value<'a, 'b>(&'a self, entity: &'a Entity, name: &'b str) -> Result<Pon, DocError> {
+    fn get_entity_property_value<'a, 'b>(&'a self, entity: &'a Entity, name: &'b str) -> Result<Ref<Pon>, DocError> {
         match entity.properties.get(name) {
             Some(prop) => match &prop.expression {
-                &Some(ref expression) => self.resolve_pon_dependencies(&entity.id, expression),
+                &Some(ref expression) => {
+                    if prop.cached_resolved_value.borrow().is_some() {
+                        return Ok(Ref::map(prop.cached_resolved_value.borrow(), |x| match x { &Some(ref x) => x, &None => unreachable!() }));
+                    }
+                    let val = try!(self.resolve_pon_dependencies(&entity.id, expression));
+                    {
+                        let mut p = prop.cached_resolved_value.borrow_mut();
+                        *p = Some(val);
+                    }
+                    return Ok(Ref::map(prop.cached_resolved_value.borrow(), |x| match x { &Some(ref x) => x, &None => unreachable!() }));
+                },
                 &None => Err(DocError::NoSuchProperty(name.to_string()))
             },
             None => Err(DocError::NoSuchProperty(name.to_string()))
