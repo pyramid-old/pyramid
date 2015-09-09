@@ -4,9 +4,7 @@ extern crate time;
 use std::mem;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::cell::Ref;
 use std::collections::HashSet;
-use std::iter::FromIterator;
 
 use document::*;
 use pon::*;
@@ -49,7 +47,7 @@ impl System {
             let prop_ref = queue.pop().unwrap();
             let deps = match self.document.get_property_dependants(&prop_ref.entity_id, &prop_ref.property_key) {
                 Ok(deps) => deps,
-                Err(err) => continue
+                Err(_) => continue
             };
             for pr in deps {
                 if !ips.contains(pr) {
