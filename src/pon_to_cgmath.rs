@@ -143,16 +143,16 @@ impl<'a> Translatable<'a, Matrix4<f32>> for Pon {
                 return Ok(Matrix4::from_translation(&vec3));
             },
             "rotate_x" => {
-                let v: &f32 = try!(data.translate());
-                return Ok(Quaternion::from_angle_x(Rad { s: *v }).into());
+                let v: f32 = try!(data.translate());
+                return Ok(Quaternion::from_angle_x(Rad { s: v }).into());
             },
             "rotate_y" => {
-                let v: &f32 = try!(data.translate());
-                return Ok(Quaternion::from_angle_y(Rad { s: *v }).into());
+                let v: f32 = try!(data.translate());
+                return Ok(Quaternion::from_angle_y(Rad { s: v }).into());
             },
             "rotate_z" => {
-                let v: &f32 = try!(data.translate());
-                return Ok(Quaternion::from_angle_z(Rad { s: *v }).into());
+                let v: f32 = try!(data.translate());
+                return Ok(Quaternion::from_angle_z(Rad { s: v }).into());
             },
             "rotate_quaternion" => {
                 let v: Cow<'a, Vector4<f32>> = try!(data.translate());

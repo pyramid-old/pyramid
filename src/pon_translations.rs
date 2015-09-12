@@ -49,27 +49,12 @@ impl<'a> Translatable<'a, &'a TypedPon> for Pon {
     }
 }
 
-impl<'a> Translatable<'a, &'a f32> for Pon {
-    fn inner_translate(&'a self) -> Result<&'a f32, PonTranslateErr> {
-        match self {
-            &Pon::Float(ref value) => Ok(&value),
-            _ => Err(PonTranslateErr::MismatchType { expected: "Float".to_string(), found: format!("{:?}", self) })
-        }
-    }
-}
 impl<'a> Translatable<'a, f32> for Pon {
     fn inner_translate(&'a self) -> Result<f32, PonTranslateErr> {
         match self {
             &Pon::Float(ref value) => Ok(*value),
+            &Pon::Integer(ref value) => Ok(*value as f32),
             _ => Err(PonTranslateErr::MismatchType { expected: "Float".to_string(), found: format!("{:?}", self) })
-        }
-    }
-}
-impl<'a> Translatable<'a, &'a i64> for Pon {
-    fn inner_translate(&'a self) -> Result<&'a i64, PonTranslateErr> {
-        match self {
-            &Pon::Integer(ref value) => Ok(&value),
-            _ => Err(PonTranslateErr::MismatchType { expected: "Integer".to_string(), found: format!("{:?}", self) })
         }
     }
 }

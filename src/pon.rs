@@ -96,6 +96,9 @@ impl Pon {
     pub fn from_string(string: &str) -> Result<Pon, PonParseError> {
         pon_peg::body(string)
     }
+    pub fn new_typed_pon(type_name: &str, data: Pon) -> Pon {
+        Pon::TypedPon(Box::new(TypedPon { type_name: type_name.to_string(), data: data }))
+    }
     pub fn get_dependency_references(&self, references: &mut Vec<NamedPropRef>) {
         match self {
             &Pon::TypedPon(box TypedPon { ref data, .. } ) =>
