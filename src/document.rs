@@ -64,7 +64,7 @@ impl Document {
     pub fn new() -> Document {
         Document {
             id_counter: 0,
-            root: 1,
+            root: 0,
             entities: HashMap::new(),
             entity_ids_by_name: HashMap::new()
         }
@@ -400,7 +400,9 @@ impl Document {
                 encoding: None,
                 standalone: None
             }).unwrap();
-            self.entity_to_xml(&self.root, &mut writer);
+            if self.root != 0 {
+                self.entity_to_xml(&self.root, &mut writer);
+            }
         }
         String::from_utf8(buff).unwrap()
     }
@@ -498,4 +500,11 @@ fn test_property_reference_not_yet_created() {
         doc.set_property(&ent, "x", Pon::Integer(9)).ok().unwrap();
     }
     assert_eq!(doc.get_property_value(&ent, "y").unwrap(), Pon::from_string("9").unwrap());
+}
+
+
+#[test]
+fn test_document_to_string_empty() {
+    let doc = Document::new();
+    assert_eq!(doc.to_string(), "<?xml version=\"1.1\" encoding=\"UTF-8\"?>");
 }
