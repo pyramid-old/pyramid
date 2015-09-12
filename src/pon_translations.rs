@@ -145,6 +145,6 @@ impl<'a, T> Translatable<'a, Vec<T>> for Pon where Pon: Translatable<'a, T> {
 #[test]
 fn test_translate_integer() {
     let node = Pon::Integer(5);
-    let i: &i64 = node.translate().unwrap();
-    assert_eq!(*i, 5);
+    let i: i64 = node.translate().unwrap();
+    assert_eq!(i, 5);
 }

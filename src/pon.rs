@@ -72,6 +72,11 @@ pub struct TypedPon {
     pub type_name: String,
     pub data: Pon
 }
+impl ToString for TypedPon {
+    fn to_string(&self) -> String {
+        format!("{} {}", self.type_name.to_string(), self.data.to_string())
+    }
+}
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Pon {
@@ -163,7 +168,7 @@ impl Pon {
 impl ToString for Pon {
     fn to_string(&self) -> String {
         match self {
-            &Pon::TypedPon(box TypedPon { ref type_name, ref data }) => format!("{} {}", type_name, data.to_string()),
+            &Pon::TypedPon(box ref typed_pon) => typed_pon.to_string(),
             &Pon::DependencyReference(ref named_prop_ref) => format!("@{}", named_prop_ref.to_string()),
             &Pon::Reference(ref named_prop_ref) => format!("{}", named_prop_ref.to_string()),
             &Pon::Array(ref array) => {
