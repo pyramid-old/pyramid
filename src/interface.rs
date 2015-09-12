@@ -6,7 +6,7 @@ use pon::*;
 use document::*;
 
 pub trait ISystem {
-    fn append_entity(&mut self, parent: &EntityId, type_name: String, name: Option<String>) -> Result<EntityId, DocError>;
+    fn append_entity(&mut self, parent: &EntityId, type_name: &str, name: Option<String>) -> Result<EntityId, DocError>;
     fn get_entity_by_name(&self, name: &str) -> Option<EntityId>;
     fn set_property(&mut self, entity_id: &EntityId, property_key: &str, value: Pon) -> Result<(), DocError>;
     fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Pon, DocError>;

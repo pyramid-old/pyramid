@@ -87,7 +87,7 @@ impl System {
 }
 
 impl ISystem for System {
-    fn append_entity(&mut self, parent: &EntityId, type_name: String, name: Option<String>) -> Result<EntityId, DocError> {
+    fn append_entity(&mut self, parent: &EntityId, type_name: &str, name: Option<String>) -> Result<EntityId, DocError> {
         match self.document.append_entity(parent.clone(), type_name, name) {
             Ok(entity_id) => {
                 self.added_entities.push(entity_id);

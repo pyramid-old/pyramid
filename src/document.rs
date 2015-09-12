@@ -73,11 +73,11 @@ impl Document {
         self.id_counter += 1;
         return self.id_counter;
     }
-    pub fn append_entity(&mut self, parent_id: EntityId, type_name: String, name: Option<String>) -> Result<EntityId, DocError> {
+    pub fn append_entity(&mut self, parent_id: EntityId, type_name: &str, name: Option<String>) -> Result<EntityId, DocError> {
         let id = self.new_id();
         let entity = Entity {
             id: id.clone(),
-            type_name: type_name,
+            type_name: type_name.to_string(),
             properties: HashMap::new(),
             name: name,
             parent_id: parent_id,
@@ -89,6 +89,11 @@ impl Document {
                 None => return Err(DocError::InvalidParent)
             };
             parent.children_ids.push(id);
+        } else {
+            if self.root != 0 {
+                panic!("Cannot set root twice.");
+            }
+            self.root = id;
         }
         if let &Some(ref name) = &entity.name {
             self.entity_ids_by_name.insert(name.clone(), entity.id);
@@ -328,7 +333,7 @@ impl Document {
                         Some(parent) => *parent,
                         None => 0
                     };
-                    let entity_id = match self.append_entity(parent, type_name.local_name.to_string(), entity_name) {
+                    let entity_id = match self.append_entity(parent, &type_name.local_name, entity_name) {
                         Ok(id) => id,
                         Err(err) => {
                             warnings.push(format!("Failed to append entity {:?}: {:?}", type_name.local_name, err));
