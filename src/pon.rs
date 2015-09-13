@@ -124,8 +124,8 @@ impl Pon {
             _ => {}
         }
     }
-    pub fn translate<'a, T>(&'a self) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, T> {
-        match self.inner_translate() {
+    pub fn translate<'a, 'b, T>(&'a self, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T> {
+        match self.inner_translate(context) {
             Ok(val) => Ok(val),
             Err(err) => {
                 let type_name = unsafe {
@@ -145,12 +145,12 @@ impl Pon {
             _ => Err(PonTranslateErr::MismatchType { expected: "Object".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn field_as<'a, T>(&'a self, field: &'a str) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, T> {
-        try!(self.field(field)).translate()
+    pub fn field_as<'a, 'b, T>(&'a self, field: &'a str, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T> {
+        try!(self.field(field)).translate(context)
     }
-    pub fn field_as_or<'a, T>(&'a self, field: &'a str, or: T) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, T> {
+    pub fn field_as_or<'a, 'b, T>(&'a self, field: &'a str, or: T, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T> {
         match self.field(field) {
-            Ok(val) => val.translate(),
+            Ok(val) => val.translate(context),
             Err(PonTranslateErr::NoSuchField { .. }) => Ok(or),
             Err(err) => Err(err)
         }
