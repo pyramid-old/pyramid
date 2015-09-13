@@ -12,6 +12,7 @@ use std::path::Path;
 use std::io::Write;
 use std::cell::RefCell;
 use std::cell::Ref;
+use std::any::Any;
 
 use xml::reader::EventReader;
 use xml::reader::events::*;
@@ -57,7 +58,10 @@ pub struct Document {
     id_counter: EntityId,
     root: EntityId,
     entities: HashMap<EntityId, Entity>,
-    entity_ids_by_name: HashMap<String, EntityId>
+    entity_ids_by_name: HashMap<String, EntityId>,
+    pub resources: HashMap<String, Box<Any>>,
+    pub on_entity_added: Option<Box<Fn(&EntityId) -> ()>>,
+    pub on_property_set: Option<Box<Fn(&EntityId, &str) -> ()>>
 }
 
 impl Document {
@@ -66,7 +70,10 @@ impl Document {
             id_counter: 0,
             root: 0,
             entities: HashMap::new(),
-            entity_ids_by_name: HashMap::new()
+            entity_ids_by_name: HashMap::new(),
+            resources: HashMap::new(),
+            on_entity_added: None,
+            on_property_set: None
         }
     }
     fn new_id(&mut self) -> EntityId {
@@ -99,6 +106,9 @@ impl Document {
             self.entity_ids_by_name.insert(name.clone(), entity.id);
         }
         self.entities.insert(entity.id, entity);
+        if let &Some(ref cb) = &self.on_entity_added {
+            cb(&id);
+        }
         return Ok(id);
     }
     pub fn get_entity_by_name(&self, name: &str) -> Option<EntityId> {
@@ -107,7 +117,7 @@ impl Document {
             None => None
         }
     }
-    pub fn iter(&self) -> EntityIter {
+    pub fn entities_iter(&self) -> EntityIter {
         self.entities.keys()
     }
     pub fn get_root(&self) -> &EntityId {
@@ -153,6 +163,9 @@ impl Document {
                     dependants: vec![]
                 });
             }
+        }
+        if let &Some(ref cb) = &self.on_property_set {
+            cb(entity_id, property_key);
         }
         Ok(())
     }

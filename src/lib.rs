@@ -2,7 +2,6 @@
 #![plugin(peg_syntax_ext)]
 
 extern crate xml;
-extern crate time;
 extern crate cgmath;
 
 #[macro_use]
