@@ -51,12 +51,12 @@ struct Entity {
     properties: HashMap<String, Property>,
     name: Option<String>,
     children_ids: Vec<EntityId>,
-    parent_id: EntityId
+    parent_id: Option<EntityId>
 }
 
 pub struct Document {
     id_counter: EntityId,
-    root: EntityId,
+    root: Option<EntityId>,
     entities: HashMap<EntityId, Entity>,
     entity_ids_by_name: HashMap<String, EntityId>,
     pub resources: HashMap<String, Box<Any>>,
@@ -68,7 +68,7 @@ impl Document {
     pub fn new() -> Document {
         Document {
             id_counter: 0,
-            root: 0,
+            root: None,
             entities: HashMap::new(),
             entity_ids_by_name: HashMap::new(),
             resources: HashMap::new(),
@@ -80,7 +80,7 @@ impl Document {
         self.id_counter += 1;
         return self.id_counter;
     }
-    pub fn append_entity(&mut self, parent_id: EntityId, type_name: &str, name: Option<String>) -> Result<EntityId, DocError> {
+    pub fn append_entity(&mut self, parent_id: Option<EntityId>, type_name: &str, name: Option<String>) -> Result<EntityId, DocError> {
         let id = self.new_id();
         let entity = Entity {
             id: id.clone(),
@@ -90,17 +90,17 @@ impl Document {
             parent_id: parent_id,
             children_ids: vec![]
         };
-        if parent_id != 0 {
+        if let Some(parent_id) = parent_id {
             let parent = match self.entities.get_mut(&parent_id) {
                 Some(parent) => parent,
                 None => return Err(DocError::InvalidParent)
             };
             parent.children_ids.push(id);
         } else {
-            if self.root != 0 {
+            if self.root.is_some() {
                 panic!("Cannot set root twice.");
             }
-            self.root = id;
+            self.root = Some(id);
         }
         if let &Some(ref name) = &entity.name {
             self.entity_ids_by_name.insert(name.clone(), entity.id);
@@ -120,8 +120,8 @@ impl Document {
     pub fn entities_iter(&self) -> EntityIter {
         self.entities.keys()
     }
-    pub fn get_root(&self) -> &EntityId {
-        &self.root
+    pub fn get_root(&self) -> Option<EntityId> {
+        self.root.clone()
     }
     // returns all props that were invalidated
     pub fn set_property(&mut self, entity_id: &EntityId, property_key: &str, expression: Pon) -> Result<(), DocError> {
@@ -231,7 +231,7 @@ impl Document {
         match path {
             &EntityPath::This => Ok(*start_entity_id),
             &EntityPath::Parent => match self.entities.get(start_entity_id) {
-                Some(entity) => Ok(entity.parent_id.clone()),
+                Some(entity) => Ok(entity.parent_id.unwrap().clone()),
                 None => Err(DocError::NoSuchEntity(*start_entity_id))
             },
             &EntityPath::Named(ref name) => match self.entity_ids_by_name.get(name) {
@@ -343,8 +343,8 @@ impl Document {
                         None => None
                     };
                     let parent = match entity_stack.last() {
-                        Some(parent) => *parent,
-                        None => 0
+                        Some(parent) => Some(*parent),
+                        None => None
                     };
                     let entity_id = match self.append_entity(parent, &type_name.local_name, entity_name) {
                         Ok(id) => id,
@@ -418,8 +418,8 @@ impl Document {
                 encoding: None,
                 standalone: None
             }).unwrap();
-            if self.root != 0 {
-                self.entity_to_xml(&self.root, &mut writer);
+            if self.root.is_some() {
+                self.entity_to_xml(&self.root.unwrap(), &mut writer);
             }
         }
         String::from_utf8(buff).unwrap()
