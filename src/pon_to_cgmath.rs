@@ -57,9 +57,8 @@ fn test_vec3_to_pon() {
 
 #[test]
 fn test_vec3_wrapped() {
-    let mut context = TranslateContext { document: None };
     let pon = Pon::Vector3(Vector3::new(1.0, 2.0, 3.0));
-    let vec3: Cow<Vector3<f32>> = pon.translate(&mut context).unwrap();
+    let vec3: Cow<Vector3<f32>> = pon.translate(&mut TranslateContext::empty()).unwrap();
     assert_eq!(*vec3, Vector3::new(1.0, 2.0, 3.0));
 }
 
@@ -121,9 +120,8 @@ fn test_vec4_to_pon() {
 
 #[test]
 fn test_vec4_wrapped() {
-    let mut context = TranslateContext { document: None };
     let pon = Pon::Vector4(Vector4::new(1.0, 2.0, 3.0, 4.0));
-    let vec4: Cow<Vector4<f32>> = pon.translate(&mut context).unwrap();
+    let vec4: Cow<Vector4<f32>> = pon.translate(&mut TranslateContext::empty()).unwrap();
     assert_eq!(*vec4, Vector4::new(1.0, 2.0, 3.0, 4.0));
 }
 
@@ -212,8 +210,7 @@ impl ToPon for Matrix4<f32> {
 
 #[test]
 fn test_pon_to_cgmath() {
-    let mut context = TranslateContext { document: None };
     let pon = Pon::from_string("mul [ translate { x: 1.0, y: 1.0, z: 1.0 }, translate vec3 { x: -1.0, y: 0.0, z: -1.0 } ]").unwrap();
-    let mat = pon.translate(&mut context);
+    let mat = pon.translate(&mut TranslateContext::empty());
     assert_eq!(mat, Ok(Matrix4::from_translation(&Vector3::new(0.0, 1.0, 0.0))));
 }

@@ -40,6 +40,18 @@ impl ToString for PonTranslateErr {
 pub struct TranslateContext<'a> {
     pub document: Option<&'a Document>,
 }
+impl<'a> TranslateContext<'a> {
+    pub fn empty() -> TranslateContext<'a> {
+        TranslateContext {
+            document: None
+        }
+    }
+    pub fn from_doc(document: &'a mut Document) -> TranslateContext {
+        TranslateContext {
+            document: Some(document)
+        }
+    }
+}
 
 pub trait Translatable<'a, 'b, T> {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr>;
@@ -149,8 +161,7 @@ impl<'a, 'b, T> Translatable<'a, 'b, Vec<T>> for Pon where Pon: Translatable<'a,
 
 #[test]
 fn test_translate_integer() {
-    let mut context = TranslateContext { document: None };
     let node = Pon::Integer(5);
-    let i: i64 = node.translate(&mut context).unwrap();
+    let i: i64 = node.translate(&mut TranslateContext::empty()).unwrap();
     assert_eq!(i, 5);
 }
