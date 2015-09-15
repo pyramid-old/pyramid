@@ -3,7 +3,7 @@ use cgmath::*;
 use std::borrow::Cow;
 use document::*;
 
-impl<'a, 'b> Translatable<'a, 'b, Cow<'a, Vector3<f32>>> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, Cow<'a, Vector3<f32>>> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<Cow<Vector3<f32>>, PonTranslateErr> {
         match self {
             &Pon::TypedPon(box TypedPon { ref type_name, ref data }) => {
@@ -29,7 +29,7 @@ impl<'a, 'b> Translatable<'a, 'b, Cow<'a, Vector3<f32>>> for Pon {
     }
 }
 
-impl<'a, 'b> Translatable<'a, 'b, Vector3<f32>> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, Vector3<f32>> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<Vector3<f32>, PonTranslateErr> {
         let v: Cow<'a, Vector3<f32>> = try!(self.inner_translate(context));
         Ok(v.into_owned())
@@ -63,7 +63,7 @@ fn test_vec3_wrapped() {
 }
 
 
-impl<'a, 'b> Translatable<'a, 'b, Cow<'a, Vector4<f32>>> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, Cow<'a, Vector4<f32>>> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<Cow<Vector4<f32>>, PonTranslateErr> {
         match self {
             &Pon::TypedPon(box TypedPon { ref type_name, ref data }) => {
@@ -91,7 +91,7 @@ impl<'a, 'b> Translatable<'a, 'b, Cow<'a, Vector4<f32>>> for Pon {
     }
 }
 
-impl<'a, 'b> Translatable<'a, 'b, Vector4<f32>> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, Vector4<f32>> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<Vector4<f32>, PonTranslateErr> {
         let v: Cow<'a, Vector4<f32>> = try!(self.inner_translate(context));
         Ok(v.into_owned())
@@ -127,7 +127,7 @@ fn test_vec4_wrapped() {
 
 
 
-impl<'a, 'b> Translatable<'a, 'b, Matrix4<f32>> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, Matrix4<f32>> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<Matrix4<f32>, PonTranslateErr> {
         let &TypedPon { ref type_name, ref data } = try!(self.translate(context));
         match type_name.as_str() {

@@ -4,6 +4,7 @@ pub use pon::pon_peg::ParseError as PonParseError;
 
 use document::EntityId;
 pub use pon_translations::*;
+use document::Document;
 
 use std::collections::HashMap;
 use std::slice::SliceConcatExt;
@@ -124,14 +125,23 @@ impl Pon {
             _ => {}
         }
     }
-    pub fn translate<'a, 'b, T>(&'a self, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T> {
-        match self.inner_translate(context) {
-            Ok(val) => Ok(val),
-            Err(err) => {
-                let type_name = unsafe {
-                    ::std::intrinsics::type_name::<T>()
-                };
-                Err(PonTranslateErr::InnerError { in_pon: self.clone(), error: Box::new(err), trying_to_translate_to: type_name.to_string() })
+    pub fn translate<'t, 'a: 't, 'b: 't, T: 't>(&'a self, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'t, 'a, 'b, T> {
+        match self {
+            &Pon::DependencyReference(ref named_prop_ref) => {
+                let mut doc: &'b mut Document = &mut context.document.unwrap();
+                let prop_ref = doc.resolve_named_prop_ref(&context.entity_id, &named_prop_ref).unwrap();
+                let pon: &'b Pon = doc.get_property_expression(&prop_ref.entity_id, &prop_ref.property_key).unwrap();
+                let new_context: TranslateContext<'b> = TranslateContext::new(doc, prop_ref.entity_id);
+                pon.translate(&mut new_context)
+            },
+            _ => match self.inner_translate(context) {
+                Ok(val) => Ok(val),
+                Err(err) => {
+                    let type_name = unsafe {
+                        ::std::intrinsics::type_name::<T>()
+                    };
+                    Err(PonTranslateErr::InnerError { in_pon: self.clone(), error: Box::new(err), trying_to_translate_to: type_name.to_string() })
+                }
             }
         }
     }
@@ -145,10 +155,10 @@ impl Pon {
             _ => Err(PonTranslateErr::MismatchType { expected: "Object".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn field_as<'a, 'b, T>(&'a self, field: &'a str, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T> {
+    pub fn field_as<'t, 'a: 't, 'b: 't, T: 't>(&'a self, field: &'a str, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'t, 'a, 'b, T> {
         try!(self.field(field)).translate(context)
     }
-    pub fn field_as_or<'a, 'b, T>(&'a self, field: &'a str, or: T, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T> {
+    pub fn field_as_or<'t, 'a: 't, 'b: 't, T: 't>(&'a self, field: &'a str, or: T, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'t, 'a, 'b, T> {
         match self.field(field) {
             Ok(val) => val.translate(context),
             Err(PonTranslateErr::NoSuchField { .. }) => Ok(or),

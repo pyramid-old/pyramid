@@ -39,25 +39,28 @@ impl ToString for PonTranslateErr {
 
 pub struct TranslateContext<'a> {
     pub document: Option<&'a Document>,
+    pub entity_id: EntityId
 }
 impl<'a> TranslateContext<'a> {
     pub fn empty() -> TranslateContext<'a> {
         TranslateContext {
-            document: None
+            document: None,
+            entity_id: 0
         }
     }
-    pub fn from_doc(document: &'a mut Document) -> TranslateContext {
+    pub fn new(document: &'a mut Document, entity_id: EntityId) -> TranslateContext<'a> {
         TranslateContext {
-            document: Some(document)
+            document: Some(document),
+            entity_id: entity_id
         }
     }
 }
 
-pub trait Translatable<'a, 'b, T> {
+pub trait Translatable<'t, 'a: 't, 'b: 't, T: 't> {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr>;
 }
 
-impl<'a, 'b> Translatable<'a, 'b, &'a TypedPon> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, &'a TypedPon> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<&'a TypedPon, PonTranslateErr> {
         match self {
             &Pon::TypedPon(ref value) => Ok(&value),
@@ -66,7 +69,7 @@ impl<'a, 'b> Translatable<'a, 'b, &'a TypedPon> for Pon {
     }
 }
 
-impl<'a, 'b> Translatable<'a, 'b, f32> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, f32> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<f32, PonTranslateErr> {
         match self {
             &Pon::Float(ref value) => Ok(*value),
@@ -75,7 +78,7 @@ impl<'a, 'b> Translatable<'a, 'b, f32> for Pon {
         }
     }
 }
-impl<'a, 'b> Translatable<'a, 'b, i64> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, i64> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<i64, PonTranslateErr> {
         match self {
             &Pon::Integer(ref value) => Ok(*value),
@@ -83,7 +86,7 @@ impl<'a, 'b> Translatable<'a, 'b, i64> for Pon {
         }
     }
 }
-impl<'a, 'b> Translatable<'a, 'b, &'a str> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, &'a str> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<&'a str, PonTranslateErr> {
         match self {
             &Pon::String(ref value) => Ok(&value),
@@ -91,7 +94,7 @@ impl<'a, 'b> Translatable<'a, 'b, &'a str> for Pon {
         }
     }
 }
-impl<'a, 'b> Translatable<'a, 'b, &'a bool> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, &'a bool> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<&'a bool, PonTranslateErr> {
         match self {
             &Pon::Boolean(ref value) => Ok(&value),
@@ -99,7 +102,7 @@ impl<'a, 'b> Translatable<'a, 'b, &'a bool> for Pon {
         }
     }
 }
-impl<'a, 'b> Translatable<'a, 'b, Cow<'a, Vec<f32>>> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, Cow<'a, Vec<f32>>> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<Cow<'a, Vec<f32>>, PonTranslateErr> {
         match self {
             &Pon::Array(ref arr) => {
@@ -114,7 +117,7 @@ impl<'a, 'b> Translatable<'a, 'b, Cow<'a, Vec<f32>>> for Pon {
         }
     }
 }
-impl<'a, 'b> Translatable<'a, 'b, Cow<'a, Vec<i64>>> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, Cow<'a, Vec<i64>>> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<Cow<'a, Vec<i64>>, PonTranslateErr> {
         match self {
             &Pon::Array(ref arr) => {
@@ -129,7 +132,7 @@ impl<'a, 'b> Translatable<'a, 'b, Cow<'a, Vec<i64>>> for Pon {
         }
     }
 }
-impl<'a, 'b> Translatable<'a, 'b, &'a Vec<Pon>> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, &'a Vec<Pon>> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<&'a Vec<Pon>, PonTranslateErr> {
         match self {
             &Pon::Array(ref value) => Ok(&value),
@@ -137,7 +140,7 @@ impl<'a, 'b> Translatable<'a, 'b, &'a Vec<Pon>> for Pon {
         }
     }
 }
-impl<'a, 'b> Translatable<'a, 'b, &'a HashMap<String, Pon>> for Pon {
+impl<'t, 'a: 't, 'b: 't> Translatable<'t, 'a, 'b, &'a HashMap<String, Pon>> for Pon {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<&'a HashMap<String, Pon>, PonTranslateErr> {
         match self {
             &Pon::Object(ref value) => Ok(&value),
@@ -147,7 +150,7 @@ impl<'a, 'b> Translatable<'a, 'b, &'a HashMap<String, Pon>> for Pon {
 }
 
 
-impl<'a, 'b, T> Translatable<'a, 'b, Vec<T>> for Pon where Pon: Translatable<'a, 'b, T> {
+impl<'t, 'a: 't, 'b: 't, T: 't> Translatable<'t, 'a, 'b, Vec<T>> for Pon where Pon: Translatable<'t, 'a, 'b, T> {
     fn inner_translate(&'a self, context: &mut TranslateContext<'b>) -> Result<Vec<T>, PonTranslateErr> {
         let source: &Vec<Pon> = try!(self.translate::<&Vec<Pon>>(context));
         let mut out = vec![];
