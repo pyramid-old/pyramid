@@ -12,6 +12,9 @@ use std::hash::Hash;
 use std::cmp::Eq;
 use cgmath;
 use std::intrinsics;
+use std::ops::Deref;
+use std::rc::Rc;
+use std::cell::{RefCell,Ref};
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash, PartialOrd, Ord)]
 pub enum EntityPath {
@@ -79,9 +82,15 @@ impl ToString for TypedPon {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+pub struct ResolvedDependency {
+    pub prop_ref: PropRef,
+    pub value: Rc<RefCell<Option<Pon>>>
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub enum Pon {
     TypedPon(Box<TypedPon>),
-    DependencyReference(NamedPropRef),
+    DependencyReference(NamedPropRef, Option<ResolvedDependency>),
     Reference(NamedPropRef),
     Array(Vec<Pon>),
     FloatArray(Vec<f32>),
@@ -108,7 +117,7 @@ impl Pon {
         match self {
             &Pon::TypedPon(box TypedPon { ref data, .. } ) =>
                 data.get_dependency_references(references),
-            &Pon::DependencyReference(ref reference) => {
+            &Pon::DependencyReference(ref reference, _) => {
                 references.push(reference.clone());
             },
             &Pon::Object(ref hm) => {
@@ -124,14 +133,23 @@ impl Pon {
             _ => {}
         }
     }
-    pub fn translate<'a, 'b, T>(&'a self, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T> {
-        match self.inner_translate(context) {
-            Ok(val) => Ok(val),
-            Err(err) => {
-                let type_name = unsafe {
-                    ::std::intrinsics::type_name::<T>()
-                };
-                Err(PonTranslateErr::InnerError { in_pon: self.clone(), error: Box::new(err), trying_to_translate_to: type_name.to_string() })
+    pub fn translate<T: 'static>(&self, context: &mut TranslateContext) -> Result<T, PonTranslateErr> where Pon: Translatable<T> {
+        match self {
+            &Pon::DependencyReference(ref named_prop_ref, ref dep) => match dep {
+                &Some(ref dep) => match &*dep.value.borrow() {
+                    &Some(ref pon) => pon.translate(context),
+                    &None => return Err(PonTranslateErr::ReferenceToNonExistentProperty(named_prop_ref.clone()))
+                },
+                &None => panic!("Trying to translate on non-resolved dependency reference")
+            },
+            _ => match self.inner_translate(context) {
+                Ok(val) => Ok(val),
+                Err(err) => {
+                    let type_name = unsafe {
+                        ::std::intrinsics::type_name::<T>()
+                    };
+                    Err(PonTranslateErr::InnerError { in_pon: self.clone(), error: Box::new(err), trying_to_translate_to: type_name.to_string() })
+                }
             }
         }
     }
@@ -145,16 +163,90 @@ impl Pon {
             _ => Err(PonTranslateErr::MismatchType { expected: "Object".to_string(), found: format!("{:?}", self) })
         }
     }
-    pub fn field_as<'a, 'b, T>(&'a self, field: &'a str, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T> {
+    pub fn field_as<T: 'static>(&self, field: &str, context: &mut TranslateContext) -> Result<T, PonTranslateErr> where Pon: Translatable<T> {
         try!(self.field(field)).translate(context)
     }
-    pub fn field_as_or<'a, 'b, T>(&'a self, field: &'a str, or: T, context: &mut TranslateContext<'b>) -> Result<T, PonTranslateErr> where Pon: Translatable<'a, 'b, T> {
+    pub fn field_as_or<T: 'static>(&self, field: &str, or: T, context: &mut TranslateContext) -> Result<T, PonTranslateErr> where Pon: Translatable<T> {
         match self.field(field) {
             Ok(val) => val.translate(context),
             Err(PonTranslateErr::NoSuchField { .. }) => Ok(or),
             Err(err) => Err(err)
         }
     }
+
+    pub fn concretize(&self) -> Result<Pon, PonTranslateErr> {
+        self.as_resolved(|pon| {
+            match pon {
+               &Pon::TypedPon(box TypedPon { ref type_name, ref data }) =>
+                   Ok(Pon::TypedPon(Box::new(TypedPon {
+                       type_name: type_name.clone(),
+                       data: try!(data.concretize())
+                   }))),
+               &Pon::Object(ref hm) => Ok(Pon::Object(hm.iter().map(|(k,v)| {
+                       (k.clone(), v.concretize().unwrap())
+                   }).collect())),
+               &Pon::Array(ref arr) => Ok(Pon::Array(arr.iter().map(|v| {
+                        v.concretize().unwrap()
+                   }).collect())),
+               _ => Ok(pon.clone())
+           }
+        })
+    }
+
+    pub fn as_resolved<'a, T: 'static, F: FnOnce(&Pon) -> Result<T, PonTranslateErr> + 'a>(&'a self, func: F) -> Result<T, PonTranslateErr> {
+        match self {
+            &Pon::DependencyReference(ref named_prop_ref, Some(ref resolved)) => {
+                match &*resolved.value.borrow() {
+                    &Some(ref v) => v.as_resolved(func),
+                    &None => return Err(PonTranslateErr::ReferenceToNonExistentProperty(named_prop_ref.clone()))
+                }
+            },
+            &Pon::DependencyReference(_, None) => panic!("Cannot treat non-resolved pon as resolved."),
+            _ => func(self),
+        }
+    }
+
+    pub fn as_typed<'a, T: 'static, F: FnOnce(&TypedPon) -> Result<T, PonTranslateErr> + 'a>(&'a self, func: F) -> Result<T, PonTranslateErr> {
+        self.as_resolved(|pon| match pon {
+            &Pon::TypedPon(box ref value) => func(value),
+            _ => Err(PonTranslateErr::MismatchType { expected: "TypedPon".to_string(), found: format!("{:?}", pon) })
+        })
+    }
+    pub fn as_array<'a, T: 'static, F: FnOnce(&Vec<Pon>) -> Result<T, PonTranslateErr> + 'a>(&'a self, func: F) -> Result<T, PonTranslateErr> {
+        self.as_resolved(|pon| match pon {
+            &Pon::Array(ref value) => func(value),
+            _ => Err(PonTranslateErr::MismatchType { expected: "Array".to_string(), found: format!("{:?}", pon) })
+        })
+    }
+    pub fn as_object<'a, T: 'static, F: FnOnce(&HashMap<String, Pon>) -> Result<T, PonTranslateErr> + 'a>(&'a self, func: F) -> Result<T, PonTranslateErr> {
+        self.as_resolved(|pon| match pon {
+            &Pon::Object(ref value) => func(value),
+            _ => Err(PonTranslateErr::MismatchType { expected: "Object".to_string(), found: format!("{:?}", pon) })
+        })
+    }
+    // pub fn as_float_array(&self) -> Result<Vec<f32>, PonTranslateErr> {
+    //     self.as_resolved(|pon| {
+    //         match pon {
+    //             &Pon::Array(ref arr) => {
+    //                 let mut res_arr = vec![];
+    //                 for v in arr {
+    //                     res_arr.push(try!(v.as_float()));
+    //                 }
+    //                 return Ok(res_arr);
+    //             },
+    //             &Pon::FloatArray(ref value) => Ok(value.clone()),
+    //             _ => Err(PonTranslateErr::MismatchType { expected: "Array or FloatArray".to_string(), found: format!("{:?}", self) })
+    //         }
+    //     })
+    // }
+    // pub fn as_float(&self) -> Result<f32, PonTranslateErr> {
+    //     self.as_resolved(|pon| {
+    //         match pon {
+    //             &Pon::Float(ref value) => Ok(value.clone()),
+    //             _ => Err(PonTranslateErr::MismatchType { expected: "Float".to_string(), found: format!("{:?}", self) })
+    //         }
+    //     })
+    // }
 
     pub fn as_reference(&self) -> Result<&NamedPropRef, PonTranslateErr> {
         match self {
@@ -164,12 +256,11 @@ impl Pon {
     }
 }
 
-
 impl ToString for Pon {
     fn to_string(&self) -> String {
         match self {
             &Pon::TypedPon(box ref typed_pon) => typed_pon.to_string(),
-            &Pon::DependencyReference(ref named_prop_ref) => format!("@{}", named_prop_ref.to_string()),
+            &Pon::DependencyReference(ref named_prop_ref, _) => format!("@{}", named_prop_ref.to_string()),
             &Pon::Reference(ref named_prop_ref) => format!("{}", named_prop_ref.to_string()),
             &Pon::Array(ref array) => {
                 let a: Vec<String> = array.iter().map(|x| x.to_string()).collect();
