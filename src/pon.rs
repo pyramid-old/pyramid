@@ -102,6 +102,7 @@ pub enum Pon {
     Boolean(bool),
     Vector3(cgmath::Vector3<f32>),
     Vector4(cgmath::Vector4<f32>),
+    Matrix4(cgmath::Matrix4<f32>),
     Nil
 }
 
@@ -282,6 +283,7 @@ impl ToString for Pon {
             &Pon::Boolean(ref v) => format!("{}", v),
             &Pon::Vector3(ref v) => v.to_pon().to_string(),
             &Pon::Vector4(ref v) => v.to_pon().to_string(),
+            &Pon::Matrix4(ref v) => v.to_pon().to_string(),
             &Pon::Nil => "()".to_string()
         }
     }

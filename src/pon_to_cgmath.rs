@@ -115,6 +115,9 @@ fn test_vec4_wrapped() {
 
 impl Translatable<Matrix4<f32>> for Pon {
     fn inner_translate(&self, context: &mut TranslateContext) -> Result<Matrix4<f32>, PonTranslateErr> {
+        if let &Pon::Matrix4(ref mat) = self {
+            return Ok(mat.clone());
+        }
         self.as_typed(|&TypedPon { ref type_name, ref data }| {
             match type_name.as_str() {
                 "matrix" => {
