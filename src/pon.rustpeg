@@ -21,7 +21,7 @@ dependency_reference -> Pon
     Pon::DependencyReference(NamedPropRef {
       entity_path: entity_path,
       property_key: property_name.to_string(),
-    })
+    }, None)
   }
 
 reference -> Pon

@@ -106,7 +106,7 @@ fn test_transform_number() {
 #[test]
 fn test_dependency_reference() {
     let v = Pon::from_string("@some.test");
-    assert_eq!(v, Ok(Pon::DependencyReference(NamedPropRef::new(EntityPath::Named("some".to_string()), "test"))));
+    assert_eq!(v, Ok(Pon::DependencyReference(NamedPropRef::new(EntityPath::Named("some".to_string()), "test"), None)));
 }
 
 #[test]

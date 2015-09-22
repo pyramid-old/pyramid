@@ -13,6 +13,7 @@ use std::io::Write;
 use std::cell::RefCell;
 use std::cell::Ref;
 use std::any::Any;
+use std::rc::Rc;
 
 use xml::reader::EventReader;
 use xml::reader::events::*;
@@ -40,7 +41,7 @@ pub type PropertyIter<'a> = Keys<'a, String, Property>;
 
 #[derive(Debug)]
 struct Property {
-    expression: Option<Pon>,
+    expression: Rc<RefCell<Option<Pon>>>,
     dependants: Vec<PropRef>
 }
 
@@ -52,6 +53,22 @@ struct Entity {
     name: Option<String>,
     children_ids: Vec<EntityId>,
     parent_id: Option<EntityId>
+}
+
+impl Entity {
+    fn get_or_create_property(&mut self, property_key: &str) -> &mut Property {
+        match self.properties.entry(property_key.to_string()) {
+            Entry::Occupied(o) => {
+                o.into_mut()
+            },
+            Entry::Vacant(v) => {
+                v.insert(Property {
+                    expression: Rc::new(RefCell::new(None)),
+                    dependants: vec![]
+                })
+            }
+        }
+    }
 }
 
 pub struct Document {
@@ -124,7 +141,7 @@ impl Document {
         self.root.clone()
     }
     // returns all props that were invalidated
-    pub fn set_property(&mut self, entity_id: &EntityId, property_key: &str, expression: Pon) -> Result<(), DocError> {
+    pub fn set_property(&mut self, entity_id: &EntityId, property_key: &str, mut expression: Pon) -> Result<(), DocError> {
         //println!("set property {} {:?}", property_key, expression);
         let dependencies: Vec<PropRef> = {
             let entity = match self.entities.get(entity_id) {
@@ -137,60 +154,35 @@ impl Document {
             match self.entities.get_mut(&dep_ent_id) {
                 Some(dep_ent) => {
                     let prop_ref = PropRef { entity_id: entity_id.clone(), property_key: property_key.to_string() };
-                    match dep_ent.properties.entry(dep_prop_key) {
-                        Entry::Occupied(o) => {
-                            o.into_mut().dependants.push(prop_ref);
-                        },
-                        Entry::Vacant(v) => {
-                            v.insert(Property {
-                                expression: None,
-                                dependants: vec![prop_ref]
-                            });
-                        }
-                    }
+                    let mut prop = dep_ent.get_or_create_property(&dep_prop_key);
+                    prop.dependants.push(prop_ref);
                 },
                 None => return Err(DocError::NoSuchEntity(dep_ent_id))
             }
         }
         {
+            try!(self.resolve_pon_dependencies(&entity_id, &mut expression));
+        }
+        {
             let mut ent_mut = self.entities.get_mut(entity_id).unwrap();
-            if ent_mut.properties.contains_key(property_key) {
-                let mut prop = ent_mut.properties.get_mut(property_key).unwrap();
-                prop.expression = Some(expression);
-            } else {
-                ent_mut.properties.insert(property_key.to_string(), Property {
-                    expression: Some(expression),
-                    dependants: vec![]
-                });
-            }
+            let prop = ent_mut.get_or_create_property(property_key);
+            *prop.expression.borrow_mut() = Some(expression);
         }
         if let &Some(ref cb) = &self.on_property_set {
             cb(entity_id, property_key);
         }
         Ok(())
     }
-    pub fn get_property_value(&self, entity_id: &EntityId, property_key: &str) -> Result<Pon, DocError> {
+    pub fn get_property(&self, entity_id: &EntityId, property_key: &str) -> Result<Ref<Pon>, DocError> {
         match self.entities.get(entity_id) {
-            Some(entity) => self.get_entity_property_value(entity, property_key),
-            None => Err(DocError::NoSuchEntity(*entity_id))
-        }
-    }
-    pub fn get_property_expression(&self, entity_id: &EntityId, property_key: &str) -> Result<&Pon, DocError> {
-        match self.entities.get(entity_id) {
-            Some(entity) => match entity.properties.get(property_key) {
-                Some(property) => match &property.expression {
-                    &Some(ref expression) => Ok(expression),
-                    &None => Err(DocError::NoSuchProperty(property_key.to_string()))
-                },
-                None => Err(DocError::NoSuchProperty(property_key.to_string()))
-            },
+            Some(entity) => self.get_entity_property(entity, property_key),
             None => Err(DocError::NoSuchEntity(*entity_id))
         }
     }
     pub fn has_property(&self, entity_id: &EntityId, name: &str) -> Result<bool, DocError> {
         match self.entities.get(entity_id) {
             Some(entity) => match entity.properties.get(name) {
-                Some(prop) => Ok(prop.expression.is_some()),
+                Some(prop) => Ok(prop.expression.borrow().is_some()),
                 None => Ok(false)
             },
             None => Err(DocError::NoSuchEntity(*entity_id))
@@ -300,37 +292,48 @@ impl Document {
         }
     }
 
-    pub fn resolve_pon_dependencies(&self, entity_id: &EntityId, node: &Pon) -> Result<Pon, DocError> {
+    fn resolve_pon_dependencies(&mut self, entity_id: &EntityId, node: &mut Pon) -> Result<(), DocError> {
         match node {
-            &Pon::TypedPon(box TypedPon { ref type_name, ref data }) =>
-                Ok(Pon::TypedPon(Box::new(TypedPon {
-                    type_name: type_name.clone(),
-                    data: try!(self.resolve_pon_dependencies(entity_id, data))
-                }))),
-            &Pon::DependencyReference(ref named_prop_ref) => {
+            &mut Pon::TypedPon(box TypedPon { ref mut data, .. }) =>
+                try!(self.resolve_pon_dependencies(entity_id, data)),
+            &mut Pon::DependencyReference(ref named_prop_ref, ref mut resolved) => {
                 let prop_ref = try!(self.resolve_named_prop_ref(&entity_id, &named_prop_ref));
-                match self.entities.get(&prop_ref.entity_id) {
-                    Some(entity) => Ok((try!(self.get_entity_property_value(entity, &prop_ref.property_key))).clone()),
-                    None => Err(DocError::NoSuchEntity(prop_ref.entity_id))
+                match self.entities.get_mut(&prop_ref.entity_id) {
+                    Some(entity) => {
+                        let prop = entity.get_or_create_property(&prop_ref.property_key);
+                        *resolved = Some(ResolvedDependency {
+                            prop_ref: prop_ref,
+                            value: prop.expression.clone()
+                        });
+                    },
+                    None => return Err(DocError::NoSuchEntity(prop_ref.entity_id))
                 }
             },
-            &Pon::Object(ref hm) => Ok(Pon::Object(hm.iter().map(|(k,v)| {
-                    (k.clone(), self.resolve_pon_dependencies(entity_id, v).unwrap())
-                }).collect())),
-            &Pon::Array(ref arr) => Ok(Pon::Array(arr.iter().map(|v| {
-                    self.resolve_pon_dependencies(entity_id, v).unwrap()
-                }).collect())),
-            _ => Ok(node.clone())
-        }
+            &mut Pon::Object(ref mut hm) => {
+                for (_, v) in hm.iter_mut() {
+                    try!(self.resolve_pon_dependencies(entity_id, v))
+                }
+            },
+            &mut Pon::Array(ref mut arr) => {
+                for v in arr.iter_mut() {
+                    try!(self.resolve_pon_dependencies(entity_id, v))
+                }
+            },
+            _ => {}
+        };
+        Ok(())
     }
 
-    fn get_entity_property_value<'a, 'b>(&'a self, entity: &'a Entity, name: &'b str) -> Result<Pon, DocError> {
-        match entity.properties.get(name) {
-            Some(prop) => match &prop.expression {
-                &Some(ref expression) => self.resolve_pon_dependencies(&entity.id, expression),
-                &None => Err(DocError::NoSuchProperty(name.to_string()))
+    fn get_entity_property<'a>(&self, entity: &'a Entity, property_key: &str) -> Result<Ref<'a, Pon>, DocError> {
+        match entity.properties.get(property_key) {
+            Some(property) => match Ref::filter_map(property.expression.borrow(), |x| match x {
+                &Some(ref r) => Some(r),
+                &None => None
+            }) {
+                Some(expression) => Ok(expression),
+                None => Err(DocError::NoSuchProperty(property_key.to_string()))
             },
-            None => Err(DocError::NoSuchProperty(name.to_string()))
+            None => Err(DocError::NoSuchProperty(property_key.to_string()))
         }
     }
 
@@ -382,7 +385,7 @@ impl Document {
         let entity = self.entities.get(entity_id).unwrap();
         let type_name = xml::name::Name::local(&entity.type_name);
         let mut attrs: Vec<xml::attribute::OwnedAttribute> = entity.properties.iter().filter_map(|(name, prop)| {
-            match &prop.expression {
+            match &*prop.expression.borrow() {
                 &Some(ref expression) => Some(xml::attribute::OwnedAttribute {
                     name: xml::name::OwnedName::local(name.to_string()),
                     value: expression.to_string()
@@ -444,7 +447,7 @@ impl ToString for Document {
 fn test_property_get() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "x").unwrap(), Pon::from_string("5.0").unwrap());
+    assert_eq!(*doc.get_property(&ent, "x").unwrap(), Pon::from_string("5.0").unwrap());
 }
 
 #[test]
@@ -454,49 +457,50 @@ fn test_property_set() {
     {
         doc.set_property(&ent, "x", Pon::Integer(9)).unwrap();
     }
-    assert_eq!(doc.get_property_value(&ent, "x").unwrap(), Pon::from_string("9").unwrap());
+    assert_eq!(*doc.get_property(&ent, "x").unwrap(), Pon::from_string("9").unwrap());
 }
 
 #[test]
 fn test_property_reference_straight() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@this.x" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y").unwrap(), Pon::from_string("5.0").unwrap());
+    assert_eq!(doc.get_property(&ent, "y").unwrap().concretize().unwrap(), Pon::from_string("5.0").unwrap());
 }
 
 #[test]
 fn test_property_reference_object() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="{ some: @this.x }" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y").unwrap(), Pon::from_string("{ some: 5.0 }").unwrap());
+    assert_eq!(doc.get_property(&ent, "y").unwrap().concretize().unwrap(), Pon::from_string("{ some: 5.0 }").unwrap());
 }
 
 #[test]
 fn test_property_reference_transfer() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="something @this.x" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y").unwrap(), Pon::from_string("something 5.0").unwrap());
+    assert_eq!(doc.get_property(&ent, "y").unwrap().concretize().unwrap(), Pon::from_string("something 5.0").unwrap());
 }
 
 #[test]
 fn test_property_reference_array() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="[@this.x]" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y").unwrap(), Pon::from_string("[5.0]").unwrap());
+    assert_eq!(doc.get_property(&ent, "y").unwrap().concretize().unwrap(),
+        Pon::from_string("[5.0]").unwrap());
 }
 
 #[test]
 fn test_property_reference_bad_ref() {
     let doc = Document::from_string(r#"<Entity name="tmp" x="5.0" y="@what.x" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y").err().unwrap(), DocError::NoSuchProperty("y".to_string()));
+    assert_eq!(doc.get_property(&ent, "y").err().unwrap(), DocError::NoSuchProperty("y".to_string()));
 }
 
 #[test]
 fn test_property_reference_parent() {
     let doc = Document::from_string(r#"<Entity x="5.0"><Entity name="tmp" y="@parent.x" /></Entity>"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
-    assert_eq!(doc.get_property_value(&ent, "y").unwrap(), Pon::Float(5.0));
+    assert_eq!(doc.get_property(&ent, "y").unwrap().concretize().unwrap(), Pon::Float(5.0));
 }
 
 #[test]
@@ -506,7 +510,7 @@ fn test_property_reference_update() {
     {
         doc.set_property(&ent, "x", Pon::Integer(9)).ok().unwrap();
     }
-    assert_eq!(doc.get_property_value(&ent, "y").unwrap(), Pon::from_string("9").unwrap());
+    assert_eq!(doc.get_property(&ent, "y").unwrap().concretize().unwrap(), Pon::from_string("9").unwrap());
 }
 
 
@@ -515,9 +519,9 @@ fn test_property_reference_not_yet_created() {
     let mut doc = Document::from_string(r#"<Entity name="tmp" y="@this.x" />"#).unwrap();
     let ent = doc.get_entity_by_name("tmp").unwrap();
     {
-        doc.set_property(&ent, "x", Pon::Integer(9)).ok().unwrap();
+        doc.set_property(&ent, "x", Pon::Float(9.0)).ok().unwrap();
     }
-    assert_eq!(doc.get_property_value(&ent, "y").unwrap(), Pon::from_string("9").unwrap());
+    assert_eq!(doc.get_property(&ent, "y").unwrap().concretize().unwrap(), Pon::Float(9.0));
 }
 
 
