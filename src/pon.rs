@@ -75,8 +75,8 @@ pub struct TypedPon {
     pub type_name: String,
     pub data: Pon
 }
-impl ToString for TypedPon {
-    fn to_string(&self) -> String {
+impl TypedPon {
+    fn stringify(&self, options: &PonStringifyOptions) -> String {
         format!("{} {}", self.type_name.to_string(), self.data.to_string())
     }
 }
@@ -255,24 +255,38 @@ impl Pon {
             _ => Err(PonTranslateErr::MismatchType { expected: "Reference".to_string(), found: format!("{:?}", self) })
         }
     }
-}
 
-impl ToString for Pon {
-    fn to_string(&self) -> String {
+    fn stringify(&self, options: &PonStringifyOptions) -> String {
         match self {
-            &Pon::TypedPon(box ref typed_pon) => typed_pon.to_string(),
-            &Pon::DependencyReference(ref named_prop_ref, _) => format!("@{}", named_prop_ref.to_string()),
+            &Pon::TypedPon(box ref typed_pon) => typed_pon.stringify(&options),
+            &Pon::DependencyReference(ref named_prop_ref, ref resolved) => {
+                if options.unwrap_dependencies {
+                    match resolved {
+                        &Some(ref resolved) => {
+                            match &*resolved.value.borrow() {
+                                &Some(ref pon) => pon.stringify(&options),
+                                &None => "()".to_string()
+                            }
+                        },
+                        &None => {
+                            format!("@{}", named_prop_ref.to_string())
+                        }
+                    }
+                } else {
+                    format!("@{}", named_prop_ref.to_string())
+                }
+            },
             &Pon::Reference(ref named_prop_ref) => format!("{}", named_prop_ref.to_string()),
             &Pon::Array(ref array) => {
-                let a: Vec<String> = array.iter().map(|x| x.to_string()).collect();
+                let a: Vec<String> = array.iter().map(|x| x.stringify(&options)).collect();
                 let mut s = a.join(", ");
                 if s.len() > 120 { s = a.join(",\n"); }
                 format!("[{}]", s)
             },
-            &Pon::FloatArray(ref array) => array.to_pon().to_string(),
-            &Pon::IntegerArray(ref array) => array.to_pon().to_string(),
+            &Pon::FloatArray(ref array) => array.to_pon().stringify(&options),
+            &Pon::IntegerArray(ref array) => array.to_pon().stringify(&options),
             &Pon::Object(ref hm) => {
-                let a: Vec<String> = hm.iter().map(|(k, v)| format!("{}: {}", k.to_string(), v.to_string())).collect();
+                let a: Vec<String> = hm.iter().map(|(k, v)| format!("{}: {}", k.to_string(), v.stringify(&options))).collect();
                 let mut s = a.join(", ");
                 if s.len() > 120 { s = a.join(",\n"); }
                 format!("{{ {} }}", s)
@@ -281,11 +295,28 @@ impl ToString for Pon {
             &Pon::Integer(ref v) => v.to_string(),
             &Pon::String(ref v) => format!("'{}'", v),
             &Pon::Boolean(ref v) => format!("{}", v),
-            &Pon::Vector3(ref v) => v.to_pon().to_string(),
-            &Pon::Vector4(ref v) => v.to_pon().to_string(),
-            &Pon::Matrix4(ref v) => v.to_pon().to_string(),
+            &Pon::Vector3(ref v) => v.to_pon().stringify(&options),
+            &Pon::Vector4(ref v) => v.to_pon().stringify(&options),
+            &Pon::Matrix4(ref v) => v.to_pon().stringify(&options),
             &Pon::Nil => "()".to_string()
         }
+    }
+}
+
+pub struct PonStringifyOptions {
+    pub unwrap_dependencies: bool
+}
+impl PonStringifyOptions {
+    pub fn default() -> PonStringifyOptions {
+        PonStringifyOptions {
+            unwrap_dependencies: false
+        }
+    }
+}
+
+impl ToString for Pon {
+    fn to_string(&self) -> String {
+        self.stringify(&PonStringifyOptions::default())
     }
 }
 
